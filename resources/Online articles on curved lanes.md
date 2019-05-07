@@ -1,0 +1,5 @@
+* Best so far - https://www.hackster.io/kemfic/curved-lane-detection-34f771 - does a perspective transform to get birds eye view, identifies the lane lines and groups them into a left/right lane using a bunch of stuff we can ignore (can just do colour thresholding), then uses numpy's polynomial fitting to get a curve (!) for both of the lines.
+* Okay - https://arxiv.org/pdf/1501.03124.pdf - aims to split up the line into lots of segments using Hough, then do some stuff to join them together.
+* Good but only for straight lines - https://medium.com/@mrhwick/simple-lane-detection-with-opencv-bfeb6ae54ec0 - just explains stuff nicely with lots of sample code and stuff.
+* Really complex, not too helpful - http://homepages.inf.ed.ac.uk/rbf/BOOKS/BANDB/LIB/bandb4_3.pdf - some paper on the general hough transform which can pick up any shape (?) - but not sure how it works, probably overkill (given the polynomial fit method)
+* Forum, someone asking about curved line detection, has links to some generalized hough transform stuff... but still isn't that useful - https://forum.openframeworks.cc/t/real-time-detection-of-curved-lines-with-hough-transform/29912
