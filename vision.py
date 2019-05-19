@@ -9,8 +9,19 @@ config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 30) #enable_stre
 config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30) #Intel resources say 1280 & 720 is best for the depth calculations, then you want to downsize it later)
 pipeline.start(config)
 
-threshold_low = (0, 0, 0)
-threshold_high = (180, 255, 255)
+# Initial Lower HSV threshold values(To be tuned later)
+lh = 0
+ls = 0
+lv = 0
+
+# Initial Upper HSV threshold values (to be tunes later)
+uh = 180
+us = 255
+uv = 255
+
+
+threshold_low = (lh, ld, lv)
+threshold_high = (uh, us, uv)
 
 debug = True
 
@@ -28,7 +39,7 @@ try:
         #Convert images to numpy arrays and resize them
         depth_image = cv2.resize(np.asanyarray(depth_frame.get_data()), (640, 360), interpolation=cv2.INTER_NEAREST)
         color_image = cv2.resize(np.asanyarray(color_frame.get_data()), (640, 360), interpolation=cv2.INTER_NEAREST)
-        
+
         #Process image:
         #Convert from RGB to HSV & threshold
         hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
@@ -36,11 +47,32 @@ try:
 
         #Detect edges with canny
         canny_image = cv2.Canny(threshold_image, 100, 200)
-        
+
         if debug:
+            # create trackbars for Upper  and Lower HSV
+            cv2.createTrackbar('UpperH',window_name,0,255,nothing)
+            cv2.setTrackbarPos('UpperH',window_name, uh)
+
+            cv2.createTrackbar('LowerH',window_name,0,255,nothing)
+            cv2.setTrackbarPos('LowerH',window_name, lh)
+
+            cv2.createTrackbar('UpperS',window_name,0,255,nothing)
+            cv2.setTrackbarPos('UpperS',window_name, us)
+
+            cv2.createTrackbar('LowerS',window_name,0,255,nothing)
+            cv2.setTrackbarPos('LowerS',window_name, ls)
+
+            cv2.createTrackbar('UpperV',window_name,0,255,nothing)
+            cv2.setTrackbarPos('UpperV',window_name, uv)
+
+            cv2.createTrackbar('LowerV',window_name,0,255,nothing)
+            cv2.setTrackbarPos('LowerV',window_name, lv)
+
+            font = cv2.FONT_HERSHEY_SIMPLEX
+
             cv2.imshow("Raw input", color_image)
             cv2.imshow("Threshold", threshold_image)
             cv2.imshow("Canny image", canny_image)
             cv2.waitKey(1)
 finally:
-    pipeline.stop()
+pipeline.stop()
