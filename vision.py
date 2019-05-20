@@ -24,6 +24,8 @@ threshold_low = (lh, ld, lv)
 threshold_high = (uh, us, uv)
 
 debug = True
+if debug:
+    import matplotlib.pyplot as plt
 
 #In a dodgy try/catch so on exit (i.e. Ctrl-C) will still run the pipeline.close()
 try:
@@ -45,8 +47,15 @@ try:
         hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
         threshold_image = cv2.inRange(hsv_image, threshold_values.get_low(), threshold_values.get_high())
 
+        #Polynomial stuff
+        non_zero_pixels = np.nonzero(threshold_image)
+        x_values = non_zero_pixels[0]
+        y_values = non_zero_pixels[1]
+        coefficients = np.polyfit(y_values, x_values, 2) #Gives the coefficients in order highest-power to lowest power (i.e. coefficients[0] = a for ax^2 + bx + c)
+        #Is rotated (i.e. domain is y-value of image, codomain x-value of image) as works better (think related to being more function-y) (also more in-line with how will be used - e.g. x-value for bottom of image gives where the line is now, for half way down the image gives where line is in say half a second)
+        
         #Detect edges with canny
-        canny_image = cv2.Canny(threshold_image, 100, 200)
+        #canny_image = cv2.Canny(threshold_image, 100, 200)
 
         if debug:
             # create trackbars for Upper  and Lower HSV
@@ -71,8 +80,18 @@ try:
             font = cv2.FONT_HERSHEY_SIMPLEX
 
             cv2.imshow("Raw input", color_image)
-            cv2.imshow("Threshold", threshold_image)
             cv2.imshow("Canny image", canny_image)
+            plt.imshow(threshold_image)
+            #Plot a bunch of points to graph
+            x_values = list(range(1, len(threshold_image)))
+            y_values = []
+            for x in x_values:
+                temp_sum = 0
+                for coefficient_index in range(len(coefficients)):
+                    temp_sum += list(coefficients)[coefficient_index]*(x**(len(coefficients)-i-1))
+                y_values.append(temp_sum)
+            plt.plot(y_values, x_values)
+            plt.show()
             cv2.waitKey(1)
 finally:
-pipeline.stop()
+    pipeline.stop()
