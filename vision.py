@@ -19,13 +19,58 @@ uh = 180
 us = 255
 uv = 255
 
+class Threshold_manager:
+    def __init__(self, lh, ls, lv, uh, us, uv):
+        self.threshold_low = (lh,ls,lv)
+        self.threshold_high = (uh,us,uv)
 
-threshold_low = (lh, ld, lv)
-threshold_high = (uh, us, uv)
+    def get_low(self):
+        return self.threshold_low
 
+    def get_high(self):
+        return self.threshold_high
+
+class Threshold_manager_debug:
+    def __init__(self):
+        self.lh = 0
+        self.uh = 180
+        self.ls = 0
+        self.us = 255
+        self.lv = 0
+        self.uv = 255
+
+    def on_low_H_thresh_trackbar(self, val):
+        self.lh = val
+    def on_high_H_thresh_trackbar(self, val):
+        self.uh = val
+    def on_low_S_thresh_trackbar(self, val):
+        self.ls = val
+    def on_high_S_thresh_trackbar(self, val):
+        self.us = val
+    def on_low_V_thresh_trackbar(self, val):
+        self.lv = val
+    def on_high_V_thresh_trackbar(self, val):
+        self.uv = val
+
+    def get_low(self):
+        return (self.lh, self.ls, self.lv)
+    def get_high(self):
+        return (self.uh, self.us, self.uv)
+
+threshold_values = Threshold_manager(lh, ls, lv, uh, us, uv)
 debug = True
 if debug:
     import matplotlib.pyplot as plt
+    threshold_values = Threshold_manager_debug()
+    cv2.namedWindow("Threshold")
+
+    cv2.createTrackbar("low hue", "Threshold", 0, 180, threshold_values.on_low_H_thresh_trackbar)
+    cv2.createTrackbar("high  hue", "Threshold", 0, 180, threshold_values.on_high_H_thresh_trackbar)
+    cv2.createTrackbar("low sat", "Threshold", 0, 255, threshold_values.on_low_S_thresh_trackbar)
+    cv2.createTrackbar("high  sat", "Threshold", 0, 255, threshold_values.on_high_S_thresh_trackbar)
+    cv2.createTrackbar("low val", "Threshold", 0, 255, threshold_values.on_low_V_thresh_trackbar)
+    cv2.createTrackbar("high  val", "Threshold", 0, 255, threshold_values.on_high_V_thresh_trackbar)
+
 
 #In a dodgy try/catch so on exit (i.e. Ctrl-C) will still run the pipeline.close()
 try:
@@ -51,7 +96,10 @@ try:
         non_zero_pixels = np.nonzero(threshold_image)
         x_values = non_zero_pixels[0]
         y_values = non_zero_pixels[1]
-        coefficients = np.polyfit(y_values, x_values, 2) #Gives the coefficients in order highest-power to lowest power (i.e. coefficients[0] = a for ax^2 + bx + c)
+        try:
+            coefficients = np.polyfit(y_values, x_values, 2) #Gives the coefficients in order highest-power to lowest power (i.e. coefficients[0] = a for ax^2 + bx + c)
+        except TypeError as e:
+            print("Coefficients received empty x/y values")
         #Is rotated (i.e. domain is y-value of image, codomain x-value of image) as works better (think related to being more function-y) (also more in-line with how will be used - e.g. x-value for bottom of image gives where the line is now, for half way down the image gives where line is in say half a second)
         
         #Detect edges with canny
@@ -59,39 +107,22 @@ try:
 
         if debug:
             # create trackbars for Upper  and Lower HSV
-            cv2.createTrackbar('UpperH',window_name,0,255,nothing)
-            cv2.setTrackbarPos('UpperH',window_name, uh)
-
-            cv2.createTrackbar('LowerH',window_name,0,255,nothing)
-            cv2.setTrackbarPos('LowerH',window_name, lh)
-
-            cv2.createTrackbar('UpperS',window_name,0,255,nothing)
-            cv2.setTrackbarPos('UpperS',window_name, us)
-
-            cv2.createTrackbar('LowerS',window_name,0,255,nothing)
-            cv2.setTrackbarPos('LowerS',window_name, ls)
-
-            cv2.createTrackbar('UpperV',window_name,0,255,nothing)
-            cv2.setTrackbarPos('UpperV',window_name, uv)
-
-            cv2.createTrackbar('LowerV',window_name,0,255,nothing)
-            cv2.setTrackbarPos('LowerV',window_name, lv)
 
             font = cv2.FONT_HERSHEY_SIMPLEX
 
+            cv2.imshow("Threshold", threshold_image)
             cv2.imshow("Raw input", color_image)
-            cv2.imshow("Canny image", canny_image)
-            plt.imshow(threshold_image)
+            plt.imshow(color_image)
             #Plot a bunch of points to graph
             x_values = list(range(1, len(threshold_image)))
             y_values = []
             for x in x_values:
                 temp_sum = 0
                 for coefficient_index in range(len(coefficients)):
-                    temp_sum += list(coefficients)[coefficient_index]*(x**(len(coefficients)-i-1))
+                    temp_sum += list(coefficients)[coefficient_index]*(x**(len(coefficients)-coefficient_index-1))
                 y_values.append(temp_sum)
             plt.plot(y_values, x_values)
-            plt.show()
+            plt.pause(0.01)
             cv2.waitKey(1)
 finally:
     pipeline.stop()
