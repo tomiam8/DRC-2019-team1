@@ -19,6 +19,9 @@ uh = 180
 us = 255
 uv = 255
 
+#Empty coefficients list for first run
+coefficients = []
+
 class Threshold_manager:
     def __init__(self, lh, ls, lv, uh, us, uv):
         self.threshold_low = (lh,ls,lv)
@@ -32,12 +35,12 @@ class Threshold_manager:
 
 class Threshold_manager_debug:
     def __init__(self):
-        self.lh = 0
-        self.uh = 180
-        self.ls = 0
-        self.us = 255
-        self.lv = 0
-        self.uv = 255
+        self.lh = 22
+        self.uh = 68
+        self.ls = 53
+        self.us = 107
+        self.lv = 114
+        self.uv = 254
 
     def on_low_H_thresh_trackbar(self, val):
         self.lh = val
@@ -123,6 +126,7 @@ try:
                 y_values.append(temp_sum)
             plt.plot(y_values, x_values)
             plt.pause(0.01)
+            plt.clf()			
             cv2.waitKey(1)
 finally:
     pipeline.stop()
