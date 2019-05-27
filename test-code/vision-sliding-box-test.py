@@ -2,12 +2,13 @@ import pyrealsense2 as rs
 import numpy as np
 import cv2
 
-#Depth and color streams
+"""#Depth and color streams
 pipeline = rs.pipeline()
 config = rs.config()
 config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 30) #enable_stream(source, width, height, format, fps)
 config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30) #Intel resources say 1280 & 720 is best for the depth calculations, then you want to downsize it later)
 pipeline.start(config)
+"""
 
 # Initial Lower HSV threshold values(To be tuned later)
 lh = 0
@@ -78,7 +79,7 @@ if debug:
 #In a dodgy try/catch so on exit (i.e. Ctrl-C) will still run the pipeline.close()
 try:
     while True:
-        #Wait for a coherent pair of depth & color frames
+        """#Wait for a coherent pair of depth & color frames
         #According to internet (implement later), should make sure takes picture from left camera
         frames = pipeline.wait_for_frames()
         depth_frame = frames.get_depth_frame()
@@ -89,11 +90,14 @@ try:
         #Convert images to numpy arrays and resize them
         depth_image = cv2.resize(np.asanyarray(depth_frame.get_data()), (640, 360), interpolation=cv2.INTER_NEAREST)
         color_image = cv2.resize(np.asanyarray(color_frame.get_data()), (640, 360), interpolation=cv2.INTER_NEAREST)
+        """
+        color_image = cv2.imread('camera.jpg',1)
 
         #Process image:
         #Convert from RGB to HSV & threshold
         hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
-        threshold_image = cv2.inRange(hsv_image, threshold_values.get_low(), threshold_values.get_high())
+        #threshold_image = cv2.inRange(hsv_image, threshold_values.get_low(), threshold_values.get_high())
+        threshold_image = cv2.inRange(hsv_image, (20,22,83), (57,134,171))
 
         if debug:
             # create trackbars for Upper  and Lower HSV
@@ -102,15 +106,49 @@ try:
 
             cv2.imshow("Threshold", threshold_image)
             cv2.imshow("Raw input", color_image)
-            fraction = int(len(color_image)/10)
-            cv2.imshow("masked_image", color_image[fraction*5:fraction*6])
+            edges = cv2.Canny(threshold_image, 100, 200)
+            (_, contours, _) = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+            #Filter contours
+            final_contours = []
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                if area > 750 and area < 80000:
+                    perimeter = cv2.arcLength(contour, True)
+                    if perimeter > 500 and perimeter < 1500:
+                        #Is supposed to approximate the area, but just kinda makes everything go funny
+                        #approx_contour = cv2.approxPolyDP(contour, 0.01*perimeter, True)
+                        final_contours.append(contour)
+            contour_image = cv2.drawContours(color_image, final_contours, -1, (255,255,0),2)
+            cv2.imshow("CANNY", edges)
+            cv2.imshow("Contours", contour_image)
+            if len(final_contours) > 0:
+                final_contours.sort(key=lambda x: cv2.contourArea(x), reverse=True)
+                bins = [[] for x in range(10)]
+                fraction = int(len(color_image)/10)
+                for point in final_contours[0]:
+                    bins[int(point[0][1]/fraction)].append(point[0])
+                midpoints = []
+                for contour in bins:
+                    contour = np.array(contour, dtype=np.int32).reshape((-1,1,2))
+                    contour = cv2.convexHull(contour, False)
+                    contour_image = cv2.drawContours(color_image, [contour], -1, (255, 0, 255), 2)
+                    moments = cv2.moments(contour)
+                    if moments["m00"] != 0:
+                        midpoints.append((int(moments["m10"] / moments["m00"]), int(moments["m01"] / moments["m00"])))
+                for line in range(len(midpoints)-1):
+                    contour_image = cv2.line(contour_image, midpoints[line], midpoints[line+1], (0,255,255), 2)
+                cv2.imshow("dfe", contour_image)
+            """images = []
             for i in range(10):
-                print(i)
-                edges = cv2.Canny(color_image[fraction*i, fraction*(i+1)], 100, 200)
+                edges = cv2.Canny(np.array(threshold_image[fraction*i, fraction*(i+1)]), 100, 200)
                 (_, contours, _) = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+                cv2.imshow("{} canny".format(i), edges)
                 canny_output = cv2.drawContours(color_image[fraction*i:fraction*(i+1)], contours, -1, (255,255,0),10)
                 cv2.imshow("{} section".format(i), canny_output)
+                images.append(canny_output)
+            cv2.imshow('Contours', np.vstack(images))"""
             cv2.waitKey(1)
 finally:
-    cv2.imwrite("camera.jpg", color_image)
-    pipeline.stop()
+    #cv2.imwrite("camera.jpg", color_image)
+    #pipeline.stop()
+    pass
