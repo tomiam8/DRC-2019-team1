@@ -19,8 +19,7 @@ uh = 180
 us = 255
 uv = 255
 
-#Empty coefficients list for first run
-coefficients = []
+fraction = int(720/10) #Size in pixels each bin should be
 
 class Threshold_manager:
     def __init__(self, lh, ls, lv, uh, us, uv):
@@ -95,18 +94,38 @@ try:
         hsv_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2HSV)
         threshold_image = cv2.inRange(hsv_image, threshold_values.get_low(), threshold_values.get_high())
 
-        #Polynomial stuff
-        non_zero_pixels = np.nonzero(threshold_image)
-        x_values = non_zero_pixels[0]
-        y_values = non_zero_pixels[1]
-        try:
-            coefficients = np.polyfit(y_values, x_values, 2) #Gives the coefficients in order highest-power to lowest power (i.e. coefficients[0] = a for ax^2 + bx + c)
-        except TypeError as e:
-            print("Coefficients received empty x/y values")
-        #Is rotated (i.e. domain is y-value of image, codomain x-value of image) as works better (think related to being more function-y) (also more in-line with how will be used - e.g. x-value for bottom of image gives where the line is now, for half way down the image gives where line is in say half a second)
-        
-        #Detect edges with canny
-        #canny_image = cv2.Canny(threshold_image, 100, 200)
+        #Do lane-line finding (sliding box)
+        edges = cv2.Canny(threshold_image, 100, 200) #TODO: Find proper values
+        (_, contours, _) = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+
+        #Filter contours
+        #TODO: Come up with actual numbers (not just guesses), more tests? (eg is it a circle?)
+        final_contours = []
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area > 750 and area < 80000:
+                perimeter = cv2.arcLength(contour, True)
+                if perimeter > 500 and perimeter < 1500:
+                    final_contours.append(contour)
+
+        #Split the contours into bins (i.e. 10ths of screen)
+        if len(final_contours) > 0:
+            final_contours.sort(key=lambda x: cv2.contourArea(x), reverse=True)
+            bins = [[] for x in range(10)]
+            midpoints = []
+
+            for point in final_contours[0]: #Get the largest one (sorted them by size above)
+                bins[int(point[0][1]/fraction)].append(point[0])
+
+            for contour in bins:
+                contour = cv2.convexHull(np.array(contour, dtype=np.int32).reshape((-1,1,2)), False)
+
+                #Write midpoints to midpoints
+                moments = cv2.moments(contour)
+                if moments["m00"] != 0:
+                    midpoints.append((int(moments["m10"] / moments["m00"]), int(moments["m01"] / moments["m00"])))
+
+            
 
         if debug:
             # create trackbars for Upper  and Lower HSV
@@ -115,18 +134,12 @@ try:
 
             cv2.imshow("Threshold", threshold_image)
             cv2.imshow("Raw input", color_image)
-            plt.imshow(color_image)
-            #Plot a bunch of points to graph
-            x_values = list(range(1, len(threshold_image)))
-            y_values = []
-            for x in x_values:
-                temp_sum = 0
-                for coefficient_index in range(len(coefficients)):
-                    temp_sum += list(coefficients)[coefficient_index]*(x**(len(coefficients)-coefficient_index-1))
-                y_values.append(temp_sum)
-            plt.plot(y_values, x_values)
-            plt.pause(0.01)
-            plt.clf()			
+            contour_image = cv2.drawContours(color_image, final_contours, -1, (255,255,0), 2)
+            cv2.imshow("Contours", contour_image)
+            lined = contour_image
+            for line in range(len(midpoints)-1):
+                lined = cv2.line(contour_image, midpoints[line], midpoints[line+1], (0,255,255), 2)
+                cv2.imshow("Lined", lined)
             cv2.waitKey(1)
 finally:
     pipeline.stop()
