@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Dec 27 08:47:50 2018
-@author: jack
-"""
-
 import numpy as np
 import cv2
 import time
 import matplotlib.pyplot as plt
-from grab import grab_screen
 import math
+import pyrealsense2 as rs
+
+from cam import setupstream
+from cam import getframes
+
+
 
 
 
@@ -80,14 +79,26 @@ def slow():
 
 time.sleep(3)
 
-#Takes in input from a record video at the moment. Need to find a way to take in a live video feed
-cap=cv2.VideoCapture("test2.mp4")
+LIVE = True
+file = "xyz.bag"
+pipe, config, profile = setupstream(LIVE, file)
+
 
 while (True):
-    _, screen= cap.read()
-    #screen = grab_screen(region=(0, 120, 700, 450))
-    new_image = proceesed_img(screen)
-    lines = cv2.HoughLinesP(new_image, 1, np.pi / 180, 100, np.array([]), minLineLength=50, maxLineGap=15)
+
+    color_frame, depth_frame, frameset = getframes(pipe)
+    depth_sensor = profile.get_device().first_depth_sensor()
+    cv2.imshow("color",color_frame)
+
+    aligned_color = cv2.cvtColor(color_frame, cv2.COLOR_RGB2BGR)
+    resize_img = cv2.resize(np.asanyarray(aligned_color), (320, 180), interpolation=cv2.INTER_NEAREST)
+    hsv_img = cv2.cvtColor(resize_img, cv2.COLOR_BGR2HSV)
+    blur_img = cv2.GaussianBlur(hsv_img, (5,5), 0)
+    bordered_img = cv2.copyMakeBorder(color_frame, 3, 3, 3, 3, cv2.BORDER_CONSTANT, (0,0,0))
+
+    gray1 = cv2.cvtColor(color_frame, cv2.COLOR_BGR2GRAY)
+
+    lines = cv2.HoughLinesP(gray1, 1, np.pi / 180, 100, np.array([]), minLineLength=50, maxLineGap=15)
     left_coordinate = []
     right_coordinate = []
 
@@ -157,8 +168,8 @@ while (True):
             slow()
             print('slow')
 
-    line_image = display_line(screen, lines)
-    combo_image = cv2.addWeighted(screen, 0.8, line_image, 1.2, 2)
+    line_image = display_line(color_frame, lines)
+    combo_image = cv2.addWeighted(color_frame, 0.8, line_image, 1.2, 2)
     cv2.imshow('my_driver_bot', cv2.cvtColor(combo_image, cv2.COLOR_BGR2RGB))
 
     if cv2.waitKey(25) & 0xff == ord('q'):
