@@ -3,8 +3,8 @@ import cv2
 import time, math, sys
 import pyrealsense2 as rs
 
-#from cam import setupstream
-#from cam import getframes
+from cam import setupstream
+from cam import getframes
 
 ################ Setup constants ################
 #Thresholds: Yellow
@@ -127,15 +127,14 @@ def main():
 
     LIVE = True
     file = "xyz.bag"
-    #pipe, config, profile = setupstream(LIVE, file)
+    pipe, config, profile = setupstream(LIVE, file)
     x_1 = 0
 
 
     while (True):
 
-        #color_frame, depth_frame, frameset = getframes(pipe)
-        #depth_sensor = profile.get_device().first_depth_sensor()
-        raw_color_frame = cv2.imread(sys.argv[2])
+        raw_color_frame, depth_frame, frameset = getframes(pipe)
+        depth_sensor = profile.get_device().first_depth_sensor()
         color_frame = cv2.resize(raw_color_frame, (width, height), interpolation=cv2.INTER_NEAREST)
         thresh = filter_image(color_frame,threshold_yellow.get_low(), threshold_yellow.get_high(), debug)
         lines = cv2.HoughLinesP(thresh, 1, np.pi / 180, 100, np.array([]), minLineLength=height/8, maxLineGap=height/12)
