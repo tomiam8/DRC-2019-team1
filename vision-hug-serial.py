@@ -21,7 +21,7 @@ midpoints = []
 width = 320
 height = 180
 center_fixed = width
-angle_constant = 0.1
+angle_constant = 0.01
 speed_constant = 100
 
 class Threshold_manager:
