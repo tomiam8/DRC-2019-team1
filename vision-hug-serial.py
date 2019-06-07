@@ -9,8 +9,8 @@ from cam import getframes
 
 ################ Setup constants ################
 #Thresholds: Yellow
-thresh_yellow_low = (18,20,158)
-thresh_yellow_high = (40,158,254)
+thresh_yellow_low = (1,51,190)
+thresh_yellow_high = (40,153,254)
 
 # debug mode
 debug = 0
@@ -65,14 +65,16 @@ class Threshold_manager_debug:
 class Arduino:
     def __init__(self):
         self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
-        self.speed = 0
-        self.angle = 0
+        self.speed = 90
+        self.angle = 90
 
     def update_speed(self, speed):
-        self.speed = speed
+        speed = (180 if speed > 180 else (0 if speed < 0 else (speed)))
+        self.speed = int(speed)
 
     def update_angle(self, angle):
-        self.angle = angle
+        angle = (180 if angle > 180 else (0 if angle < 0 else (angle)))
+        self.angle = int(angle)
 
     def get_speed(self):
         return self.speed
@@ -82,11 +84,12 @@ class Arduino:
 
     def run(self):
         while True:
-            s.write(b"D000")
+            self.connection.write(b"D000")
             time.sleep(0.04)
-            s.write(f"M{self.speed:03d}".encode())
+            self.connection.write(f"M{self.speed:03d}".encode())
             time.sleep(0.04)
-            s.write(f"S{self.angle:03d}".encode())
+            self.connection.write(f"S{self.angle:03d}".encode())
+            print(f"SENT ANGLE: S{self.angle:03d}")
             time.sleep(0.04)
 
 random_colours = [(255,0,0),(255,255,0),(0,255,),(0,255,255),(0,0,255),(255,0,255)]
@@ -159,6 +162,7 @@ def main():
     file = "xyz.bag"
     pipe, config, profile = setupstream(LIVE, file)
     x_1 = 0
+    r_x = 1
 
     arduino = Arduino()
     arduino_thread = threading.Thread(target=arduino.run)
@@ -177,21 +181,22 @@ def main():
             r = r_avg.tolist()
             # with the finded slope and intercept, this is used to find the value of point x on both left and right line
             # the center point is denoted by finding center distance between two lines
-
-            c1, d1, c2, d2 = r
-            r_slope = (d2 - d1) / (c2 - c1)
-            r_intercept = d1 - (r_slope * c1)
-            y = height*0.75
-            r_x = (y - r_intercept) / r_slope
+            try:
+                c1, d1, c2, d2 = r
+                r_slope = (d2 - d1) / (c2 - c1)
+                r_intercept = d1 - (r_slope * c1)
+                y = height
+                r_x = (y - r_intercept) / r_slope
+            except ZeroDivisionError as e:
+                print(e)
 
             offset = r_x - center_fixed
             print("OFF BY {}".format(offset))
             
-            arduino.update_angle(angle_constant*(90 + offset))
+            arduino.update_angle(angle_constant(90+offset))
             arduino.update_speed(speed_constant)
         else:
             pass
-            print('slow')
 
         if r_x != 0:
             line_image = display_line(color_frame, lines)
@@ -205,4 +210,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+main()
