@@ -63,10 +63,7 @@ random_colours = [(255,0,0),(255,255,0),(0,255,),(0,255,255),(0,0,255),(255,0,25
 threshold_yellow = Threshold_manager(thresh_yellow_low, thresh_yellow_high)
 
 #Setup debug stuff (i.e run headerless if not debug)
-if len(sys.argv) > 1:
-    debug = True
-else:
-    debug = False
+debug = True
 if debug:
     threshold_yellow = Threshold_manager_debug(thresh_yellow_low, thresh_yellow_high)
 

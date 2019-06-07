@@ -9,11 +9,11 @@ from cam import getframes
 
 ################ Setup constants ################
 #Thresholds: Yellow
-thresh_yellow_low = (1,51,190)
-thresh_yellow_high = (40,153,254)
+thresh_yellow_low = (14, 67, 130)
+thresh_yellow_high = (48, 209, 255)
 
 # debug mode
-debug = 1
+debug = False
 
 bin_nums = 10
 fraction = int(720/bin_nums)
@@ -170,11 +170,7 @@ def main():
     #arduino_thread.start()
 
     while (True):
-
-        print("Getting picture")
         raw_color_frame, depth_frame, frameset = getframes(pipe)
-        cv2.imshow("EWF", raw_color_frame)
-        cv2.waitKey(0)
         depth_sensor = profile.get_device().first_depth_sensor()
         color_frame = cv2.resize(raw_color_frame, (width, height), interpolation=cv2.INTER_NEAREST)
         thresh = filter_image(color_frame,threshold_yellow.get_low(), threshold_yellow.get_high(), debug)
