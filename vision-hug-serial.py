@@ -181,7 +181,7 @@ def main():
             c1, d1, c2, d2 = r
             r_slope = (d2 - d1) / (c2 - c1)
             r_intercept = d1 - (r_slope * c1)
-            y = height
+            y = height*0.75
             r_x = (y - r_intercept) / r_slope
 
             offset = r_x - center_fixed
