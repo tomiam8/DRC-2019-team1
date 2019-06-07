@@ -13,7 +13,7 @@ thresh_yellow_low = (1,51,190)
 thresh_yellow_high = (40,153,254)
 
 # debug mode
-debug = 0
+debug = 1
 
 bin_nums = 10
 fraction = int(720/bin_nums)
@@ -64,7 +64,7 @@ class Threshold_manager_debug:
 
 class Arduino:
     def __init__(self):
-        self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
+        #self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
         self.speed = 90
         self.angle = 90
 
@@ -84,11 +84,11 @@ class Arduino:
 
     def run(self):
         while True:
-            self.connection.write(b"D000")
+            #self.connection.write(b"D000")
             time.sleep(0.04)
-            self.connection.write(f"M{self.speed:03d}".encode())
+            #self.connection.write(f"M{self.speed:03d}".encode())
             time.sleep(0.04)
-            self.connection.write(f"S{self.angle:03d}".encode())
+            #self.connection.write(f"S{self.angle:03d}".encode())
             print(f"SENT ANGLE: S{self.angle:03d}")
             time.sleep(0.04)
 
@@ -163,6 +163,7 @@ def main():
     pipe, config, profile = setupstream(LIVE, file)
     x_1 = 0
     r_x = 1
+    debug = True
 
     arduino = Arduino()
     arduino_thread = threading.Thread(target=arduino.run)
@@ -203,6 +204,7 @@ def main():
                 line_image = display_line(color_frame, lines)
                 combo_image = cv2.addWeighted(color_frame, 0.8, line_image, 1.2, 2)
                 cv2.imshow('Lines', combo_image)
+                cv2.waitKey(1)
 
         if debug:
             if cv2.waitKey(25) & 0xff == ord('q'):
