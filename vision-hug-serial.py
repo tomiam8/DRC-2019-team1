@@ -105,7 +105,6 @@ random_colours = [(255,0,0),(255,255,0),(0,255,),(0,255,255),(0,0,255),(255,0,25
 threshold_yellow = Threshold_manager(thresh_yellow_low, thresh_yellow_high)
 
 #Setup debug stuff (i.e run headerless if not debug)
-debug = False
 if debug:
     threshold_yellow = Threshold_manager_debug(thresh_yellow_low, thresh_yellow_high)
 
@@ -125,6 +124,16 @@ def roi(image, polygons):
     masked = cv2.bitwise_and(image, mask)
     return masked
 
+
+def crop_image(image):
+    height=image.shape[0]
+    polygons=np.array([
+        ([(0,height),(0,height/2),(width,height/2),(width,height)])
+        ], dtype='int32')
+    mask=np.zeros_like(image)
+    cv2.fillPoly(mask,polygons,255)
+    masked_image=cv2.bitwise_and(image,mask)
+    return masked_image
 
 # display the lines on the screen
 def display_line(image, lines):
@@ -155,8 +164,8 @@ def filter_image(color_frame, thresh_yellow_low, thresh_yellow_high, debug):
     #Debug display stuff
     if debug:
         pass
-        #cv2.imshow("Threshold yellow", threshold_yellow_img)
-        #cv2.waitKey(1)
+       # cv2.imshow("Threshold yellow", threshold_yellow_img)
+       # cv2.waitKey(1)
 
     #Return stuff
     return threshold_yellow_img
@@ -169,7 +178,6 @@ def main():
     pipe, config, profile = setupstream(LIVE, file)
     x_1 = 0
     r_x = 1
-    debug = True
 
     arduino = Arduino()
     arduino_thread = threading.Thread(target=arduino.run)
@@ -180,7 +188,8 @@ def main():
         depth_sensor = profile.get_device().first_depth_sensor()
         color_frame = cv2.resize(raw_color_frame, (width, height), interpolation=cv2.INTER_NEAREST)
         thresh = filter_image(color_frame,threshold_yellow.get_low(), threshold_yellow.get_high(), debug)
-        cropped_img = thresh[height/2:height, 0:width]
+        cropped_img = crop_image(thresh)
+#        cv2.imshow("Crop", cropped_img)
         lines = cv2.HoughLinesP(cropped_img, 1, np.pi / 180, 100, np.array([]), minLineLength=height/8, maxLineGap=height/12)
 
         if lines is not None:
@@ -209,8 +218,8 @@ def main():
             if debug:
                 line_image = display_line(color_frame, lines)
                 combo_image = cv2.addWeighted(color_frame, 0.8, line_image, 1.2, 2)
-                #cv2.imshow('Lines', combo_image)
-                #cv2.waitKey(1)
+#                cv2.imshow('Lines', combo_image)
+#                cv2.waitKey(1)
 
         if debug:
             pass
