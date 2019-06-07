@@ -193,21 +193,23 @@ def main():
             offset = r_x - center_fixed
             print("OFF BY {}".format(offset))
             
-            arduino.update_angle(angle_constant(90+offset))
+            arduino.update_angle(angle_constant*(90+offset))
             arduino.update_speed(speed_constant)
         else:
             pass
 
         if r_x != 0:
-            line_image = display_line(color_frame, lines)
-            combo_image = cv2.addWeighted(color_frame, 0.8, line_image, 1.2, 2)
-            cv2.imshow('Lines', combo_image)
+            if debug:
+                line_image = display_line(color_frame, lines)
+                combo_image = cv2.addWeighted(color_frame, 0.8, line_image, 1.2, 2)
+                cv2.imshow('Lines', combo_image)
 
-        if cv2.waitKey(25) & 0xff == ord('q'):
-            cv2.destroyAllWindows()
-            break
+        if debug:
+            if cv2.waitKey(25) & 0xff == ord('q'):
+                cv2.destroyAllWindows()
+                break
     return
 
 
 if __name__ == '__main__':
-main()
+    main()
