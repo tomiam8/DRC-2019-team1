@@ -165,12 +165,15 @@ def main():
     r_x = 1
 
     arduino = Arduino()
-    arduino_thread = threading.Thread(target=arduino.run)
-    arduino_thread.start()
+    #arduino_thread = threading.Thread(target=arduino.run)
+    #arduino_thread.start()
 
     while (True):
 
+        print("Getting picture")
         raw_color_frame, depth_frame, frameset = getframes(pipe)
+        cv2.imshow("EWF", raw_color_frame)
+        cv2.waitKey(0)
         depth_sensor = profile.get_device().first_depth_sensor()
         color_frame = cv2.resize(raw_color_frame, (width, height), interpolation=cv2.INTER_NEAREST)
         thresh = filter_image(color_frame,threshold_yellow.get_low(), threshold_yellow.get_high(), debug)
