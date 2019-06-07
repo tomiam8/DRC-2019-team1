@@ -21,7 +21,7 @@ midpoints = []
 width = 320
 height = 180
 center_fixed = width
-angle_constant = 0.01
+angle_constant = -45/200
 speed_constant = 100
 
 class Threshold_manager:
@@ -64,16 +64,22 @@ class Threshold_manager_debug:
 
 class Arduino:
     def __init__(self):
-        #self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
-        self.speed = 90
+        self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
+        self.speed = 100
         self.angle = 90
 
     def update_speed(self, speed):
-        speed = (180 if speed > 180 else (0 if speed < 0 else (speed)))
+        if speed > 180:
+            speed = 180
+        elif speed < 0:
+            speed = 0
         self.speed = int(speed)
 
     def update_angle(self, angle):
-        angle = (180 if angle > 180 else (0 if angle < 0 else (angle)))
+        if angle > 180:
+            angle = 180
+        elif angle < 0:
+            angle = 0
         self.angle = int(angle)
 
     def get_speed(self):
@@ -84,12 +90,14 @@ class Arduino:
 
     def run(self):
         while True:
-            #self.connection.write(b"D000")
+            self.connection.write(b"D000")
             time.sleep(0.04)
             #self.connection.write(f"M{self.speed:03d}".encode())
+            self.connection.write("M100".encode())
+            #print(f"SENT SPEED: M{self.speed:03d} for speed {self.speed}")
             time.sleep(0.04)
-            #self.connection.write(f"S{self.angle:03d}".encode())
-            print(f"SENT ANGLE: S{self.angle:03d}")
+            self.connection.write(f"S{self.angle:03d}".encode())
+            print(f"SENT ANGLE: S{self.angle:03d} for angle {self.angle}")
             time.sleep(0.04)
 
 random_colours = [(255,0,0),(255,255,0),(0,255,),(0,255,255),(0,0,255),(255,0,255)]
@@ -97,10 +105,7 @@ random_colours = [(255,0,0),(255,255,0),(0,255,),(0,255,255),(0,0,255),(255,0,25
 threshold_yellow = Threshold_manager(thresh_yellow_low, thresh_yellow_high)
 
 #Setup debug stuff (i.e run headerless if not debug)
-if len(sys.argv) > 1:
-    debug = True
-else:
-    debug = False
+debug = False
 if debug:
     threshold_yellow = Threshold_manager_debug(thresh_yellow_low, thresh_yellow_high)
 
@@ -149,8 +154,9 @@ def filter_image(color_frame, thresh_yellow_low, thresh_yellow_high, debug):
     threshold_yellow_img = cv2.inRange(blur_img, thresh_yellow_low, thresh_yellow_high)
     #Debug display stuff
     if debug:
-        cv2.imshow("Threshold yellow", threshold_yellow_img)
-        cv2.waitKey(1)
+        pass
+        #cv2.imshow("Threshold yellow", threshold_yellow_img)
+        #cv2.waitKey(1)
 
     #Return stuff
     return threshold_yellow_img
@@ -166,15 +172,16 @@ def main():
     debug = True
 
     arduino = Arduino()
-    #arduino_thread = threading.Thread(target=arduino.run)
-    #arduino_thread.start()
+    arduino_thread = threading.Thread(target=arduino.run)
+    arduino_thread.start()
 
     while (True):
         raw_color_frame, depth_frame, frameset = getframes(pipe)
         depth_sensor = profile.get_device().first_depth_sensor()
         color_frame = cv2.resize(raw_color_frame, (width, height), interpolation=cv2.INTER_NEAREST)
         thresh = filter_image(color_frame,threshold_yellow.get_low(), threshold_yellow.get_high(), debug)
-        lines = cv2.HoughLinesP(thresh, 1, np.pi / 180, 100, np.array([]), minLineLength=height/8, maxLineGap=height/12)
+        cropped_img = thresh[height/2:height, 0:width]
+        lines = cv2.HoughLinesP(cropped_img, 1, np.pi / 180, 100, np.array([]), minLineLength=height/8, maxLineGap=height/12)
 
         if lines is not None:
             r_avg = np.average(lines[0], axis=0)
@@ -191,24 +198,25 @@ def main():
                 print(e)
 
             offset = r_x - center_fixed
-            print("OFF BY {}".format(offset))
+            #print("OFF BY {}".format(offset))
             
-            arduino.update_angle(angle_constant*(90+offset))
+            arduino.update_angle(90 + (angle_constant*offset))
             arduino.update_speed(speed_constant)
         else:
-            pass
+            arduino.update_angle(50)
 
         if r_x != 0:
             if debug:
                 line_image = display_line(color_frame, lines)
                 combo_image = cv2.addWeighted(color_frame, 0.8, line_image, 1.2, 2)
-                cv2.imshow('Lines', combo_image)
-                cv2.waitKey(1)
+                #cv2.imshow('Lines', combo_image)
+                #cv2.waitKey(1)
 
         if debug:
-            if cv2.waitKey(25) & 0xff == ord('q'):
-                cv2.destroyAllWindows()
-                break
+            pass
+            #if cv2.waitKey(25) & 0xff == ord('q'):
+            #    cv2.destroyAllWindows()
+            #    break
     return
 
 
