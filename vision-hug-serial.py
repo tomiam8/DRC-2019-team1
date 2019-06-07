@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
-import time, math, sys
+import serial
+import time, math, sys, threading
 import pyrealsense2 as rs
 
 from cam import setupstream
@@ -19,6 +20,9 @@ fraction = int(720/bin_nums)
 midpoints = []
 width = 320
 height = 180
+center_fixed = width
+angle_constant = 0.1
+speed_constant = 100
 
 class Threshold_manager:
     def __init__(self, low, high):
@@ -57,6 +61,33 @@ class Threshold_manager_debug:
         return (self.lh, self.ls, self.lv)
     def get_high(self):
         return (self.uh, self.us, self.uv)
+
+class Arduino:
+    def __init__(self):
+        self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
+        self.speed = 0
+        self.angle = 0
+
+    def update_speed(self, speed):
+        self.speed = speed
+
+    def update_angle(self, angle):
+        self.angle = angle
+
+    def get_speed(self):
+        return self.speed
+
+    def get_angle(self):
+        return self.angle
+
+    def run(self):
+        while True:
+            s.write(b"D000")
+            time.sleep(0.04)
+            s.write(f"M{self.speed:03d}".encode())
+            time.sleep(0.04)
+            s.write(f"S{self.angle:03d}".encode())
+            time.sleep(0.04)
 
 random_colours = [(255,0,0),(255,255,0),(0,255,),(0,255,255),(0,0,255),(255,0,255)]
 
@@ -121,7 +152,6 @@ def filter_image(color_frame, thresh_yellow_low, thresh_yellow_high, debug):
     #Return stuff
     return threshold_yellow_img
 
-
 def main():
     time.sleep(3)
 
@@ -130,6 +160,9 @@ def main():
     pipe, config, profile = setupstream(LIVE, file)
     x_1 = 0
 
+    arduino = Arduino()
+    arduino_thread = threading.Thread(target=arduino.run)
+    arduino_thread.start()
 
     while (True):
 
@@ -151,10 +184,11 @@ def main():
             y = height
             r_x = (y - r_intercept) / r_slope
 
-            # create a fixed aim point
-            center_fixed = width
-
-            print("OFF BY {}".format(center_fixed-r_x))
+            offset = r_x - center_fixed
+            print("OFF BY {}".format(offset))
+            
+            arduino.update_angle(angle_constant*(90 + offset))
+            arduino.update_speed(speed_constant)
         else:
             pass
             print('slow')
