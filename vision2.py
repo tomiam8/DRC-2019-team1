@@ -174,12 +174,15 @@ def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blu
         drawn = cv2.drawContours(drawn, filtered_contours_yellow, -1, (255,0,0), 2)
         drawn = cv2.drawContours(drawn, filtered_contours_blue, -1, (0, 0, 255), 2)
 
-        for line in range(len(midpoints_yellow)-1):
-            drawn = cv2.line(drawn, midpoints_yellow[line], midpoints_yellow[line+1], (255,255,0), 2)
-        for line in range(len(midpoints_blue)-1):
-            drawn = cv2.line(drawn, midpoints_blue[line], midpoints_blue[line+1], (255,255,0), 2)
-        for line in range(len(midpoints_final)-1):
-            drawn = cv2.line(drawn, midpoints_final[line], midpoints_final[lline+1], (0, 255, 0), 2)
+        filtered_midpoints_yellow = [x for x in midpoints_yellow if x != []]
+        filtered_midpoints_blue = [x for x in midpoints_blue if x != []]
+        filtered_midpoints_final = [x for x in midpoints_final if x != []]
+        for line in range(len(filtered_midpoints_yellow)-1):
+            drawn = cv2.line(drawn, filtered_midpoints_yellow[line], filtered_midpoints_yellow[line+1], (255,255,0), 2)
+        for line in range(len(filtered_midpoints_blue)-1):
+            drawn = cv2.line(drawn, filtered_midpoints_blue[line], filtered_midpoints_blue[line+1], (255,255,0), 2)
+        #for line in range(len(filtered_midpoints_final)-1):
+        #    drawn = cv2.line(drawn, filtered_midpoints_final[line], filtered_midpoints_final[line+1], (0, 255, 0), 2)
         
         cv2.imshow("Lined", drawn)
         cv2.waitKey(1)

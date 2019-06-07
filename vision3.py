@@ -11,6 +11,7 @@ from cam import getframes
 
 ################ Setup constants ################
 #Thresholds: Yellow
+<<<<<<< HEAD
 thresh_yellow_low = (17,73,56)
 thresh_yellow_high = (94,163,255)
 
@@ -164,6 +165,7 @@ def filter_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blue
     threshold_yellow_img = cv2.inRange(bordered_img, thresh_yellow_low, thresh_yellow_high)
     edges_yellow = cv2.Canny(threshold_yellow_img, 75, 150) #TODO: Find proper values
     (_, contours_yellow,_) = cv2.findContours(edges_yellow, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    (_, contours_yellow, _) = cv2.findContours(edges_yellow, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
     threshold_blue_img = cv2.inRange(bordered_img, thresh_blue_low, thresh_blue_high)
     edges_blue = cv2.Canny(threshold_blue_img, 75, 150)
