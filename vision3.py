@@ -155,6 +155,80 @@ def slow():
 
 # last_time  = time.time()
 
+# -----------------------Align color and depth frames--------------------------
+def aligndepthandcolor(depth_frame, color_frame, frameset, showImg):
+
+    # Extreact color information
+    color_raw = np.asanyarray(color_frame.get_data())
+    color = cv2.cvtColor(color_raw,cv2.COLOR_BGR2RGB)
+
+    colorizer = rs.colorizer()
+
+    # Create alignment primitive with color as its target stream:
+    align = rs.align(rs.stream.color)
+    frameset = align.process(frameset)
+
+    # Update color and depth frames:
+    aligned_depth_frame = frameset.get_depth_frame()
+    #colorized_depth = np.asanyarray(colorizer.colorize(aligned_depth_frame).get_data())
+    aligned_depth = np.asanyarray(aligned_depth_frame.get_data())
+
+    # Show the two frames together:
+    if showImg == True:
+        red = [0,0,255]
+
+        # Change one pixel
+        color[300:310,650:660]=red
+        cv2.imshow("color", color)
+        #cv2.resizeWindow('color', 600,600)
+
+        cv2.imshow("depthcolor", aligned_depth)
+        #cv2.resizeWindow('depthcolor', 600,600)
+
+
+        cv2.waitKey(1)
+
+    return color, aligned_depth
+
+# Segment the depth image to remove all data outside of a specific range
+def segmentdepth(depth_image, profile, depth_limit):
+
+    depth_scale = profile.get_device().first_depth_sensor().get_depth_scale()
+    depth_image = depth_image * depth_scale
+
+    width = depth_image.shape[1]
+    length = depth_image.shape[0]
+
+    # This filter assumes that the hand is the closest object to the camera
+    # Filter if less than 11cm away as this is probably noise
+    depth_image[depth_image < 0.11] = 10
+
+    min_depth = depth_image.min()
+    hand_width = depth_limit
+
+    # if there is data outside the assumed hand range then ignore it
+    depth_image[depth_image > (min_depth + hand_width)] = 0
+
+    #depth_image[depth_image < min_depth] = 0 # not needed as it was filtered before
+
+    return depth_image
+
+# Find the x y z position of an input point (pixel x and y)
+def depthto3d(center_x, center_y, depth_sensor, depth_frame, aligned_depth, profile):
+
+    depth_scale = depth_sensor.get_depth_scale()
+    depth_pixel = [center_x, center_y]   # Random pixel
+    depth_intrin = depth_frame.profile.as_video_stream_profile().intrinsics
+
+    depth_point = rs.rs2_deproject_pixel_to_point(depth_intrin, depth_pixel, aligned_depth[center_y, center_x])
+    depth_scale = profile.get_device().first_depth_sensor().get_depth_scale()
+
+    # print(depth_point[0])
+    # print(depth_point[1])
+    # print(depth_point[2])
+
+    return depth_point[0], depth_point[1], depth_point[2]
+
 def filter_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blue_low, thresh_blue_high, debug):
     #Image processing (resize, hsv, blur, add border, threshold, blur, Canny, contour finding)
 
