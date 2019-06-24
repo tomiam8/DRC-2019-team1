@@ -11,7 +11,6 @@ from cam import getframes
 
 ################ Setup constants ################
 #Thresholds: Yellow
-<<<<<<< HEAD
 thresh_yellow_low = (17,73,56)
 thresh_yellow_high = (94,163,255)
 
