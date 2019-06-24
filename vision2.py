@@ -181,8 +181,8 @@ def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blu
             drawn = cv2.line(drawn, filtered_midpoints_yellow[line], filtered_midpoints_yellow[line+1], (255,255,0), 2)
         for line in range(len(filtered_midpoints_blue)-1):
             drawn = cv2.line(drawn, filtered_midpoints_blue[line], filtered_midpoints_blue[line+1], (255,255,0), 2)
-        #for line in range(len(filtered_midpoints_final)-1):
-        #    drawn = cv2.line(drawn, filtered_midpoints_final[line], filtered_midpoints_final[line+1], (0, 255, 0), 2)
+        for line in range(len(filtered_midpoints_final)-1):
+            drawn = cv2.line(drawn, filtered_midpoints_final[line], filtered_midpoints_final[line+1], (0, 255, 0), 2)
         
         cv2.imshow("Lined", drawn)
         cv2.waitKey(1)
