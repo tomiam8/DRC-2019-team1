@@ -154,11 +154,13 @@ def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blu
     bordered_img = cv2.copyMakeBorder(blur_img, 3, 3, 3, 3, cv2.BORDER_CONSTANT, (0, 0, 0))
 
     threshold_yellow_img = cv2.inRange(bordered_img, thresh_yellow_low, thresh_yellow_high)
-    edges_yellow = cv2.Canny(threshold_yellow_img, 75, 125)  # TODO: Find proper values
+    dilated_yellow_img = cv2.dilate(threshold_yellow_img, cv2.getStructuringElement(cv2.MORPH_RECT, (3,3)), 1)
+    edges_yellow = cv2.Canny(dilated_yellow_img, 75, 125)  # TODO: Find proper values
     (_, contours_yellow, _) = cv2.findContours(edges_yellow, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
     threshold_blue_img = cv2.inRange(bordered_img, thresh_blue_low, thresh_blue_high)
-    edges_blue = cv2.Canny(threshold_blue_img, 75, 125)
+    dilated_blue_img = cv2.dilate(threshold_blue_img, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)), 1)
+    edges_blue = cv2.Canny(dilated_blue_img, 75, 125)
     (_, contours_blue, _) = cv2.findContours(edges_blue, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
     # Contour filtering
@@ -188,17 +190,22 @@ def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blu
     if debug:
         cv2.imshow("Threshold yellow", threshold_yellow_img)
         cv2.imshow("Threshold blue", threshold_blue_img)
+        cv2.imshow("Morph", dilated_blue_img)
+        cv2.imshow("Morph yellow", dilated_yellow_img)
+        cv2.imshow("Canny yellow", edges_yellow)
         cv2.imshow("Canny", edges_blue)
 
         drawn = np.copy(cv2.cvtColor(bordered_img, cv2.COLOR_HSV2BGR))
         pre_filtering = np.copy(drawn)
         pre_filtering = cv2.drawContours(pre_filtering, contours_yellow, -1, (255, 0, 0), 2)
         pre_filtering = cv2.drawContours(pre_filtering, contours_blue, -1, (0, 0, 255), 2)
+        """
         for contour in contours_blue:
             cv2.imshow("ewfd", cv2.drawContours(drawn, (contour,), -1, (0, 255, 0), 2))
             print(cv2.contourArea(contour))
             cv2.waitKey(0)
             pass
+        """
         drawn = cv2.drawContours(drawn, filtered_contours_yellow, -1, (255, 0, 0), 2)
         drawn = cv2.drawContours(drawn, filtered_contours_blue, -1, (0, 0, 255), 2)
 
