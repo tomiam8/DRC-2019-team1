@@ -164,12 +164,12 @@ def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blu
     (_, contours_blue, _) = cv2.findContours(edges_blue, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
     # Contour filtering
-    filtered_contours_yellow = filter_contours(contours_yellow)
-    filtered_contours_blue = filter_contours(contours_blue)
+    filtered_contours_yellow = filter_contours(contours_yellow, np.copy(cv2.cvtColor(bordered_img, cv2.COLOR_HSV2BGR))) #TODO remove sending the contour for debug
+    filtered_contours_blue = filter_contours(contours_blue, np.copy(cv2.cvtColor(bordered_img, cv2.COLOR_HSV2BGR)))
 
     # Midpoint stuff
-    midpoints_yellow = bin_contours(filtered_contours_yellow, np.copy(cv2.cvtColor(bordered_img, cv2.COLOR_HSV2BGR)))
-    midpoints_blue = bin_contours(filtered_contours_blue, np.copy(cv2.cvtColor(bordered_img, cv2.COLOR_HSV2BGR)))
+    midpoints_yellow = bin_contours(filtered_contours_yellow)
+    midpoints_blue = bin_contours(filtered_contours_blue)
 
     # Midpoints of midpoints
     bin_midpoints = [[] for x in range(bin_nums)]
@@ -229,7 +229,7 @@ def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blu
     return None
 
 
-def filter_contours(contours):
+def filter_contours(contours, image): #TODO remove image (is for debug)
     final_contours = []
     for contour in contours:
         area = cv2.contourArea(contour)
@@ -237,13 +237,20 @@ def filter_contours(contours):
             perimeter = cv2.arcLength(contour, True)
             if perimeter > 100 and perimeter < 600:
                 rect = cv2.minAreaRect(contour)
-                width = rectangle[1][0]
-                height = rectangle[1][1]
+                width = min(rect[1])
+                height = max(rect[1])
                 ratio = width/height
-                if 0.05 < ratio < 0.2:
-                    final_contours.append(contour)
+                #print(ratio)
+                #print(rect)
+                #cv2.imshow("WEfd", cv2.drawContours(np.copy(image), (contour, np.int0(cv2.boxPoints(rect))), -1, (0, 255,0), 2))
+                #cv2.waitKey(0)
+                if 0.05 < ratio < 0.2: #Aspect ratio
+                    if -65 < rect[2] < -40: #Angle
+                        #cv2.imshow("WEfd", cv2.drawContours(np.copy(image), (contour, np.int0(cv2.boxPoints(rect))), -1, (0, 255,0), 2))
+                        #cv2.waitKey(0)
+                        final_contours.append(contour)
 
-    return contours
+    return final_contours
 
 
 def bin_contours(contours):
