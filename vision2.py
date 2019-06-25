@@ -246,41 +246,23 @@ def filter_contours(contours):
     return contours
 
 
-def bin_contours(contours, drawn):
+def bin_contours(contours):
     if contours != []:
+        bins = [[] for x in range(bin_nums)]
         bin_midpoints = [[] for x in range(bin_nums)]
-        bins_final = [[] for x in range(bin_nums)]
-        for contour in contours:
-            bins = [[] for x in range(bin_nums)]
-            for point in contour:
-                bins[int(point[0][1] / fraction)].append(point[0])
-            for segment in enumerate(bins):
-                if segment[1] != []:
-                    segmentConvex = cv2.convexHull(np.array(segment[1], dtype=np.int32).reshape((-1, 1, 2)), False)
-                    # More filtering... (aspect ratio, etc.)
-                    rectangle = cv2.minAreaRect(segmentConvex)
-                    width = min(rectangle[1])
-                    height = max(rectangle[1])
-                    try:
-                        ratio = width/height
-                        print("Ratio: {} Width: {} Height: {}".format(ratio, width, height))
-                        cv2.imshow("ratio", cv2.drawContours(np.copy(drawn), (segmentConvex,), -1, (0, 255, 0), 2))
-                        cv2.waitKey(0)
-                        if 0.05 < ratio < 0.2:
-                            bins_final[segment[0]] = segment[1]
-                    except ZeroDivisionError:
-                        pass
-                    cv2.waitKey(1)
 
-        for contour in bins_final:
+        for point in contours[0]:
+            bins[int(point[0][1] / fraction)].append(point[0])
+
+        for contour in bins:
             contour = cv2.convexHull(np.array(contour, dtype=np.int32).reshape((-1, 1, 2)), False)
+
             moments = cv2.moments(contour)
             if moments["m00"] != 0:
                 bin_midpoints.append((int(moments["m10"] / moments["m00"]), int(moments["m01"] / moments["m00"])))
         return bin_midpoints
     else:
         return []
-
 
 camera = Camera()
 _thread.start_new_thread(camera.take_pics, tuple())
