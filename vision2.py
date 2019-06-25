@@ -1,6 +1,7 @@
 import pyrealsense2 as rs
 import numpy as np
-import cv2, sys, time, _thread
+import cv2, sys, time, _thread, threading
+import serial
 
 ################ Setup constants ################
 #Thresholds: Yellow
@@ -60,6 +61,44 @@ class Threshold_manager_debug:
 
     def get_high(self):
         return (self.uh, self.us, self.uv)
+
+class Arduino:
+    def __init__(self):
+        self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
+        self.speed = 100
+        self.angle = 90
+
+    def update_speed(self, speed):
+        if speed > 180:
+            speed = 180
+        elif speed < 0:
+            speed = 0
+        self.speed = int(speed)
+
+    def update_angle(self, angle):
+        if angle > 180:
+            angle = 180
+        elif angle < 0:
+            angle = 0
+        self.angle = int(angle)
+
+    def get_speed(self):
+        return self.speed
+
+    def get_angle(self):
+        return self.angle
+
+    def run(self):
+        while True:
+            self.connection.write(b"D000")
+            time.sleep(0.04)
+            #self.connection.write(f"M{self.speed:03d}".encode())
+            self.connection.write("M100".encode())
+            #print(f"SENT SPEED: M{self.speed:03d} for speed {self.speed}")
+            time.sleep(0.04)
+            self.connection.write(f"S{self.angle:03d}".encode())
+            print(f"SENT ANGLE: S{self.angle:03d} for angle {self.angle}")
+            time.sleep(0.04)
 
 
 random_colours = [(255, 0, 0), (255, 255, 0), (0, 255,), (0, 255, 255), (0, 0, 255), (255, 0, 255)]
@@ -225,8 +264,13 @@ def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blu
         cv2.imshow("Pre filtering", pre_filtering)
         cv2.waitKey(1)
 
+    avg = []
+    for point in midpoints_final:
+        avg.append(point[0])
+    offset = (sum(avg)/len(avg)) - (width/2)
+
     # Return stuff
-    return None
+    return offset
 
 
 def filter_contours(contours, image): #TODO remove image (is for debug)
@@ -273,12 +317,16 @@ def bin_contours(contours):
 
 camera = Camera()
 _thread.start_new_thread(camera.take_pics, tuple())
+arduiono = Arduino()
+arduino_thread = threading.Thread(target=arduino.run)
+arduino_thread.start()
 try:
     while camera.get_color_frame() is None:
         time.sleep(0.1)  # Wait for camera to start
     while True:
-        process_image(camera.get_color_frame(), threshold_yellow.get_low(), threshold_yellow.get_high(),
+        angle = process_image(camera.get_color_frame(), threshold_yellow.get_low(), threshold_yellow.get_high(),
                       threshold_blue.get_low(), threshold_blue.get_high(), debug)
+        arduino.update_angle(angle*0.01)
 except Exception as e:
     camera.stop()
     raise e
