@@ -168,8 +168,8 @@ def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blu
     filtered_contours_blue = filter_contours(contours_blue)
 
     # Midpoint stuff
-    midpoints_yellow = bin_contours(filtered_contours_yellow)
-    midpoints_blue = bin_contours(filtered_contours_blue)
+    midpoints_yellow = bin_contours(filtered_contours_yellow, np.copy(cv2.cvtColor(bordered_img, cv2.COLOR_HSV2BGR)))
+    midpoints_blue = bin_contours(filtered_contours_blue, np.copy(cv2.cvtColor(bordered_img, cv2.COLOR_HSV2BGR)))
 
     # Midpoints of midpoints
     bin_midpoints = [[] for x in range(bin_nums)]
@@ -199,13 +199,14 @@ def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blu
         pre_filtering = np.copy(drawn)
         pre_filtering = cv2.drawContours(pre_filtering, contours_yellow, -1, (255, 0, 0), 2)
         pre_filtering = cv2.drawContours(pre_filtering, contours_blue, -1, (0, 0, 255), 2)
-        """
-        for contour in contours_blue:
+        
+        """for contour in contours_yellow:
             cv2.imshow("ewfd", cv2.drawContours(drawn, (contour,), -1, (0, 255, 0), 2))
-            print(cv2.contourArea(contour))
+            print(cv2.arcLength(contour, True))
             cv2.waitKey(0)
             pass
         """
+
         drawn = cv2.drawContours(drawn, filtered_contours_yellow, -1, (255, 0, 0), 2)
         drawn = cv2.drawContours(drawn, filtered_contours_blue, -1, (0, 0, 255), 2)
 
@@ -234,23 +235,45 @@ def filter_contours(contours):
         area = cv2.contourArea(contour)
         if area > 15 and area < 6000:
             perimeter = cv2.arcLength(contour, True)
-            print(area)
-            if perimeter > 100 and perimeter < 300:
-                final_contours.append(contour)
-    return sorted(final_contours, key=lambda x: cv2.contourArea(x), reverse=True)
+            if perimeter > 100 and perimeter < 600:
+                rect = cv2.minAreaRect(contour)
+                width = rectangle[1][0]
+                height = rectangle[1][1]
+                ratio = width/height
+                if 0.05 < ratio < 0.2:
+                    final_contours.append(contour)
+
+    return contours
 
 
-def bin_contours(contours):
+def bin_contours(contours, drawn):
     if contours != []:
-        bins = [[] for x in range(bin_nums)]
         bin_midpoints = [[] for x in range(bin_nums)]
+        bins_final = [[] for x in range(bin_nums)]
+        for contour in contours:
+            bins = [[] for x in range(bin_nums)]
+            for point in contour:
+                bins[int(point[0][1] / fraction)].append(point[0])
+            for segment in enumerate(bins):
+                if segment[1] != []:
+                    segmentConvex = cv2.convexHull(np.array(segment[1], dtype=np.int32).reshape((-1, 1, 2)), False)
+                    # More filtering... (aspect ratio, etc.)
+                    rectangle = cv2.minAreaRect(segmentConvex)
+                    width = min(rectangle[1])
+                    height = max(rectangle[1])
+                    try:
+                        ratio = width/height
+                        print("Ratio: {} Width: {} Height: {}".format(ratio, width, height))
+                        cv2.imshow("ratio", cv2.drawContours(np.copy(drawn), (segmentConvex,), -1, (0, 255, 0), 2))
+                        cv2.waitKey(0)
+                        if 0.05 < ratio < 0.2:
+                            bins_final[segment[0]] = segment[1]
+                    except ZeroDivisionError:
+                        pass
+                    cv2.waitKey(1)
 
-        for point in contours[0]:
-            bins[int(point[0][1] / fraction)].append(point[0])
-
-        for contour in bins:
+        for contour in bins_final:
             contour = cv2.convexHull(np.array(contour, dtype=np.int32).reshape((-1, 1, 2)), False)
-
             moments = cv2.moments(contour)
             if moments["m00"] != 0:
                 bin_midpoints.append((int(moments["m10"] / moments["m00"]), int(moments["m01"] / moments["m00"])))
