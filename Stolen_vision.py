@@ -4,6 +4,10 @@ import logging
 import math
 import datetime
 import sys
+import threading
+import _thread
+import serial
+import pyrealsense2 as rs
 
 _SHOW_IMAGE = True
 
@@ -15,6 +19,86 @@ thresh_yellow_high = (94,163,255)
 thresh_blue_low = (17,128,56)
 thresh_blue_high = (170, 249, 204)
 
+class Arduino:
+    def __init__(self):
+        self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
+        self.speed = 100
+        self.angle = 90
+
+    def update_speed(self, speed):
+        if speed > 180:
+            speed = 180
+        elif speed < 0:
+            speed = 0
+        self.speed = int(speed)
+
+    def update_angle(self, angle):
+        if angle > 180:
+            angle = 180
+        elif angle < 0:
+            angle = 0
+        self.angle = int(angle)
+
+    def get_speed(self):
+        return self.speed
+
+    def get_angle(self):
+        return self.angle
+
+    def run(self):
+        while True:
+            self.connection.write(b"D000")
+            time.sleep(0.04)
+            #self.connection.write(f"M{self.speed:03d}".encode())
+            self.connection.write("M100".encode())
+            #print(f"SENT SPEED: M{self.speed:03d} for speed {self.speed}")
+            time.sleep(0.04)
+            self.connection.write(f"S{self.angle:03d}".encode())
+            print(f"SENT ANGLE: S{self.angle:03d} for angle {self.angle}")
+            time.sleep(0.04)
+
+class Camera:
+    def __init__(self):
+        self.pipeline = rs.pipeline()
+        self.config = rs.config()
+        self.config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16,
+                                  30)  # enable_stream(source, width, height, format, fps)
+        self.config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8,
+                                  30)  # Intel resources say 1280 & 720 is best for the depth calculations, then you want to downsize it later)
+        self.pipeline.start(self.config)
+        self.color_out = None
+        self.depth_out = None
+        self.run = True
+
+    def take_pics(self):
+        while self.run:
+            # Currently, just runs the color as we're not (yet) using depth
+            frames = self.pipeline.wait_for_frames()
+            color_frame = frames.get_color_frame()
+            # depth_frame = frames.get_depth_frame()
+            """if not color_frame or not depth_frame:
+                pass
+            else:
+                self.color_out = color_frame
+                self.depth_out = depth_frame"""
+
+            # Temp color-only code:
+            if color_frame is not None:
+                self.color_out = color_frame.get_data()
+                self.timestamp = time.time()
+
+    def stop(self):
+        self.run = False
+        self.pipeline.stop()
+
+    def get_color_frame(self):
+        return self.color_out
+
+    def get_depth_frame(self):
+        return self.depth_out
+
+    def get_timestamp(self):
+        return self.timestamp
 
 class HandCodedLaneFollower(object):
 
@@ -22,6 +106,9 @@ class HandCodedLaneFollower(object):
         logging.info('Creating a HandCodedLaneFollower...')
         self.car = car
         self.curr_steering_angle = 90
+        self.arduino = Arduino()
+        self.arduino_thread = threading.Thread(target=self.arduino.run)
+        self.arduino_thread.start()
 
     def follow_lane(self, frame):
         # Main entry point of the lane follower
@@ -42,8 +129,7 @@ class HandCodedLaneFollower(object):
         self.curr_steering_angle = stabilize_steering_angle(self.curr_steering_angle, new_steering_angle,
                                                             len(lane_lines))
 
-        if self.car is not None:
-            self.car.front_wheels.turn(self.curr_steering_angle)
+        self.arduino.update_angle(self.curr_steering_anle)
         curr_heading_image = display_heading_line(frame, self.curr_steering_angle)
         #show_image("heading", curr_heading_image)
 
@@ -287,22 +373,21 @@ def make_points(frame, line):
     return [[x1, y1, x2, y2]]
 
 
-cap=cv2.VideoCapture("test4.mp4")
-video_file='test4'
+camera = Camera()
+_thread.start_new_thread(camera.take_pics, tuple())
 lane_follower = HandCodedLaneFollower()
 
-# skip first second of video.
-for i in range(3):
-    _, frame = cap.read()
 
 #video_type = cv2.VideoWriter_fourcc(*'XVID')
 #video_overlay = cv2.VideoWriter("%s_overlay.avi" % (video_file), video_type, 20.0, (320, 240))
 try:
     #i = 0
-    while cap.isOpened():
-        _, frame = cap.read()
+    # wait for camera to start
+    while camera.get_color_frame() is None:
+        time.sleep(0.1)
+    while True:
+        combo_image = lane_follower.follow_lane(camera.get_color_frame())
         #print('frame %s' % i)
-        combo_image = lane_follower.follow_lane(frame)
 
         #cv2.imwrite("%s_%03d_%03d.png" % (video_file, i, lane_follower.curr_steering_angle), frame)
 
@@ -314,6 +399,6 @@ try:
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 finally:
-    cap.release()
+    camera.stop()
     #video_overlay.release()
     cv2.destroyAllWindows()
