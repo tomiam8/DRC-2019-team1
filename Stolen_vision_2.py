@@ -44,6 +44,7 @@ class Arduino:
             angle = 180
         elif angle < 0:
             angle = 0
+        angle = 180 - angle
         self.angle = int(angle)
 
     def get_speed(self):
@@ -158,16 +159,16 @@ def detect_lane(frame):
 
     # only focus bottom right half of the screen
     yellow_polygon= np.array([[
-        (width/2, height * 1 / 2),
-        (width, height * 1 / 2),
+        (width/2, 0),
+        (width, 0),
         (width, height),
         (width/2, height)
     ]], np.int32)
 
     #only focus on the bottom left helf of the screen
     blue_polygon= np.array([[
-        (0, height * 1 / 2),
-        (width / 2, height * 1 / 2),
+        (0, 0),
+        (width / 2, 0),
         (width / 2, height),
         (0, height)
     ]], np.int32)
@@ -314,7 +315,7 @@ def compute_steering_angle(frame, lane_lines):
 
     angle_to_mid_radian = math.atan(x_offset / y_offset)  # angle (in radian) to center vertical line
     angle_to_mid_deg = int(angle_to_mid_radian * 180.0 / math.pi)  # angle (in degrees) to center vertical line
-    steering_angle = angle_to_mid_deg + 90  # this is the steering angle needed by picar front wheel
+    steering_angle = 90 + angle_to_mid_deg # this is the steering angle needed by picar front wheel
 
     logging.debug('new steering angle: %s' % steering_angle)
     return steering_angle
@@ -400,9 +401,12 @@ def make_points(frame, line):
     y2 = int(y1 * 1 / 2)  # make points from middle of the frame down
 
     # bound the coordinates within the frame
-    x1 = max(-width, min(2 * width, int((y1 - intercept) / slope)))
-    x2 = max(-width, min(2 * width, int((y2 - intercept) / slope)))
-    return [[x1, y1, x2, y2]]
+    try:
+    	x1 = max(-width, min(2 * width, int((y1 - intercept) / slope)))
+    	x2 = max(-width, min(2 * width, int((y2 - intercept) / slope)))
+    	return [[x1, y1, x2, y2]]
+    except OverflowError:
+        return [[-width, y1, -width, y1]]
 
 
 #cap=cv2.VideoCapture("test4.mp4")
