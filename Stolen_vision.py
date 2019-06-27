@@ -16,8 +16,8 @@ thresh_yellow_low = (17,73,56)
 thresh_yellow_high = (94,163,255)
 
 #Thresholds: blue
-thresh_blue_low = (17,128,56)
-thresh_blue_high = (170, 249, 204)
+thresh_blue_low = (31,44,88)
+thresh_blue_high = (146, 249, 188)
 
 class Arduino:
     def __init__(self):
@@ -149,16 +149,28 @@ def detect_lane(frame):
     show_image('blue edges', blue_edges)
 
 
-    yellow_cropped_edges = region_of_interest(blue_edges)
-    #show_image('yellow edges cropped', yellow_cropped_edges)
+    yellow_cropped_edges = region_of_interest(yellow_edges)
+    blue_cropped_edges = region_of_interest(blue_edges)
+    show_image('yellow edges cropped', yellow_cropped_edges)
 
-    line_segments = detect_line_segments(yellow_cropped_edges)
-    line_segment_image = display_lines(frame, line_segments)
+    yellow_line_segments = detect_line_segments(yellow_cropped_edges)
+    blue_line_segments = detect_line_segments(blue_cropped_edges)
+
+    #line_segment_image = display_lines(frame, yellow_line_segments)
     #show_image("yellow line segments", line_segment_image)
 
-    lane_lines = average_slope_intercept(frame, line_segments)
+    yellow_lane_lines = average_slope_intercept(frame, yellow_line_segments)
+    blue_lane_lines = average_slope_intercept(frame, blue_line_segments)
+
+    if len(yellow_lane_lines)>0 and len(blue_lane_lines)>0:
+        lane_lines=[yellow_lane_lines[0],blue_lane_lines[0]]
+    elif len(yellow_lane_lines)>0:
+        lane_lines=[yellow_lane_lines[0]]
+    else:
+        lane_lines=[blue_lane_lines[0]]
+
     lane_lines_image = display_lines(frame, lane_lines)
-    #show_image("yellow lane lines", lane_lines_image)
+    show_image("lane lines", lane_lines_image)
 
     return lane_lines, lane_lines_image
 
@@ -321,6 +333,7 @@ def display_lines(frame, lines, line_color=(0, 255, 0), line_width=10):
     line_image = np.zeros_like(frame)
     if lines is not None:
         for line in lines:
+            print(line)
             for x1, y1, x2, y2 in line:
                 cv2.line(line_image, (x1, y1), (x2, y2), line_color, line_width)
     line_image = cv2.addWeighted(frame, 0.8, line_image, 1, 1)
@@ -378,8 +391,6 @@ _thread.start_new_thread(camera.take_pics, tuple())
 lane_follower = HandCodedLaneFollower()
 
 
-#video_type = cv2.VideoWriter_fourcc(*'XVID')
-#video_overlay = cv2.VideoWriter("%s_overlay.avi" % (video_file), video_type, 20.0, (320, 240))
 try:
     #i = 0
     # wait for camera to start
@@ -395,7 +406,6 @@ try:
         #video_overlay.write(combo_image)
         cv2.imshow("Road with Lane line", combo_image)
 
-        #i += 1
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 finally:
