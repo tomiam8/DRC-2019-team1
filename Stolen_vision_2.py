@@ -158,44 +158,59 @@ def detect_lane(frame):
     height,width=yellow_edges.shape
 
     # only focus bottom right half of the screen
-    yellow_polygon= np.array([[
-        (width/2, 0),
-        (width, 0),
+    right_polygon = np.array([[
+        (width / 2, 200),
+        (width, 200),
         (width, height),
-        (width/2, height)
+        (width / 2, height)
     ]], np.int32)
 
-    #only focus on the bottom left helf of the screen
-    blue_polygon= np.array([[
-        (0, 0),
-        (width / 2, 0),
+    # only focus on the bottom left helf of the screen
+    left_polygon = np.array([[
+        (0, 200),
+        (width / 2, 200),
         (width / 2, height),
         (0, height)
     ]], np.int32)
 
-    yellow_cropped_edges = region_of_interest(yellow_edges,yellow_polygon)
-    blue_cropped_edges = region_of_interest(blue_edges,blue_polygon)
+    yellow_cropped_edges_R = region_of_interest(yellow_edges, right_polygon)
+    blue_cropped_edges_L = region_of_interest(blue_edges, left_polygon)
+    yellow_cropped_edges_L = region_of_interest(yellow_edges, left_polygon)
+    blue_cropped_edges_R = region_of_interest(blue_edges, right_polygon)
 
-    show_image('yellow edges cropped', yellow_cropped_edges)
-    show_image('blue edges cropped', blue_cropped_edges)
+    show_image('yellow edges cropped', yellow_cropped_edges_R)
+    show_image('blue edges cropped', blue_cropped_edges_L)
 
-    yellow_line_segments = detect_line_segments(yellow_cropped_edges)
-    blue_line_segments = detect_line_segments(blue_cropped_edges)
+    yellow_line_segments_R = detect_line_segments(yellow_cropped_edges_R)
+    blue_line_segments_R = detect_line_segments(blue_cropped_edges_R)
+    yellow_line_segments_L = detect_line_segments(yellow_cropped_edges_L)
+    blue_line_segments_L = detect_line_segments(blue_cropped_edges_L)
 
-    #line_segment_image = display_lines(frame, yellow_line_segments)
-    #show_image("yellow line segments", line_segment_image)
+    # line_segment_image = display_lines(frame, yellow_line_segments)
+    # show_image("yellow line segments", line_segment_image)
 
-    yellow_lane_lines = average_slope_intercept(frame, yellow_line_segments)
-    blue_lane_lines = average_slope_intercept(frame, blue_line_segments)
+    yellow_lane_lines_R = average_slope_intercept(frame, yellow_line_segments_R)
+    blue_lane_lines_R = average_slope_intercept(frame, blue_line_segments_R)
+    yellow_lane_lines_L = average_slope_intercept(frame, yellow_line_segments_L)
+    blue_lane_lines_L = average_slope_intercept(frame, blue_line_segments_L)
 
-    if len(yellow_lane_lines)>0 and len(blue_lane_lines)>0:
-        lane_lines=[yellow_lane_lines[0],blue_lane_lines[0]]
-    elif len(yellow_lane_lines)>0:
-        lane_lines=[yellow_lane_lines[0]]
-    elif len(blue_lane_lines)>0:
-        lane_lines=[blue_lane_lines[0]]
+    if len(yellow_lane_lines_R) > 0 and len(blue_lane_lines_L) > 0:
+        lane_lines = [yellow_lane_lines_R[0], blue_lane_lines_L[0]]
+
+    elif len(yellow_lane_lines_R) > 0:
+        lane_lines = [yellow_lane_lines_R[0]]
+
+    elif len(blue_lane_lines_L) > 0:
+        lane_lines = [blue_lane_lines_L[0]]
+
+    elif len(yellow_lane_lines_L) > 0:
+        lane_lines = [yellow_lane_lines_L[0]]
+
+    elif len(blue_lane_lines_R) > 0:
+        lane_lines = [blue_lane_lines_R[0]]
+
     else:
-        lane_lines=[]
+        lane_lines = []
 
     lane_lines_image = display_lines(frame, lane_lines)
     show_image("lane lines", lane_lines_image)
@@ -371,7 +386,7 @@ def display_heading_line(frame, steering_angle, line_color=(0, 0, 255), line_wid
     # Note: the steering angle of:
     # 0-89 degree: turn left
     # 90 degree: going straight
-    # 91-180 degree: turn right 
+    # 91-180 degree: turn right
     steering_angle_radian = steering_angle / 180.0 * math.pi
     x1 = int(width / 2)
     y1 = height
