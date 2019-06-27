@@ -156,74 +156,90 @@ def detect_lane(frame):
 
     height,width=yellow_edges.shape
 
-    # only focus bottom right half of the screen
-    right_polygon = np.array([[
-        (width / 2, 50),
-        (width, 50),
+    #Crop out top of image
+    crop_polygon = np.array([[
+        (0, height / 3),
+        (width, height / 3),
         (width, height),
-        (width / 2, height)
-    ]], np.int32)
-
-    # only focus on the bottom left helf of the screen
-    left_polygon = np.array([[
-        (0, 50),
-        (width / 2, 50),
-        (width / 2, height),
         (0, height)
     ]], np.int32)
 
-    yellow_cropped_edges_R = region_of_interest(yellow_edges, right_polygon)
-    blue_cropped_edges_L = region_of_interest(blue_edges, left_polygon)
-    yellow_cropped_edges_L = region_of_interest(yellow_edges, left_polygon)
-    blue_cropped_edges_R = region_of_interest(blue_edges, right_polygon)
+    yellow_cropped = region_of_interest(yellow_edges, crop_polygon)
+    blue_cropped = region_of_interest(blue_edges, crop_polygon)
 
-    show_image('yellow edges right', yellow_cropped_edges_R)
-    show_image('blue edges left', blue_cropped_edges_L)
-    show_image('blue edges right', blue_cropped_edges_R)
-    show_image('yellow edges left', yellow_cropped_edges_L)
+    show_image('yellow edges', yellow_cropped)
+    show_image('blue edges', blue_cropped)
 
-    yellow_line_segments_R = detect_line_segments(yellow_cropped_edges_R)
-    blue_line_segments_R = detect_line_segments(blue_cropped_edges_R)
-    yellow_line_segments_L = detect_line_segments(yellow_cropped_edges_L)
-    blue_line_segments_L = detect_line_segments(blue_cropped_edges_L)
+    yellow_line_segments = detect_line_segments(yellow_cropped)
+    blue_line_segments = detect_line_segments(blue_cropped)
 
-    line_segment_image = display_lines(frame, yellow_line_segments_R)
+    line_segment_image_yellow = display_lines(frame, yellow_line_segments)
     show_image("yellow line segments", line_segment_image)
-    line_segment_image_blue = display_lines(frame, blue_line_segments_L)
+    line_segment_image_blue = display_lines(frame, blue_line_segments)
     show_image("blue line segments", line_segment_image_blue)
 
-    yellow_lane_lines_R = average_slope_intercept(frame, yellow_line_segments_R)
-    blue_lane_lines_R = average_slope_intercept(frame, blue_line_segments_R)
-    yellow_lane_lines_L = average_slope_intercept(frame, yellow_line_segments_L)
-    blue_lane_lines_L = average_slope_intercept(frame, blue_line_segments_L)
+    #Split lines into three segments:
+    yellow_bottom, yellow_mid, yellow_top = split_lines(yellow_line_segments, height)
+    blue_bottom, blue_mid, blue_top = split_lines(blue_line_segments, height)
 
-    if len(yellow_lane_lines_R) > 0 and len(blue_lane_lines_L) > 0:
-        print("Two lines")
-        lane_lines = [yellow_lane_lines_R[0], blue_lane_lines_L[0]]
+    yellow_bottom_line = section_average_slope_intercept(yellow_bottom) #returns (gradient, intercept)
+    yellow_mid_line = section_average_slope_intercept(yellow_mid)
+    yellow_top_line = section_average_slope_intercept(yellow_top)
 
-    elif len(yellow_lane_lines_R) > 0:
-        print("Yellow")
-        lane_lines = [yellow_lane_lines_R[0]]
+    blue_bottom_line = section_average_slope_intercept(blue_bottom) #returns (gradient, intercept)
+    blue_mid_line = section_average_slope_intercept(blue_mid)
+    blue_top_line = section_average_slope_intercept(blue_top)
 
-    elif len(blue_lane_lines_L) > 0:
-        print("blue")
-        lane_lines = [blue_lane_lines_L[0]]
+    #Subbing in for x (y=mx+b style)
+    yellow_bottom_point = (1/yellow_bottom_line[0])*(height - yellow_bottom_line[1])
+    yellow_mid_point = (1/yellow_mid_line[0])*(height*2/3 - yellow_mid_line[1])
+    yellow_top_point = (1/yellow_top_line[0])*(height*0.5 - yellow_top_line[1])
 
-    #elif len(yellow_lane_lines_L) > 0:
-        #lane_lines = [yellow_lane_lines_L[0]]
+    blue_bottom_point = (1/blue_bottom_line[0])*(height*1/6 - blue_bottom_line[1])
+    blue_mid_point = (1/blue_mid_line[0])*(height*2/3 - blue_mid_line[1])
+    blue_top_point = (1/blue_top_line[0])*(height*0.5 - blue_top_line[1])
 
-    #elif len(blue_lane_lines_R) > 0:
-        #lane_lines = [blue_lane_lines_R[0]]
+    average_bottom_point = (yellow_bottom_point + blue_bottom_point) / 2
+    average_mid_point = (yellow_mid_point + blue_mid_point) / 2
+    average_top_point = (yellow_top_point + blue_top_point) / 2
 
-    else:
-        print("none")
-        lane_lines = []
+    lane_lines_image = display_lines(frame, ((calculate_x_from_y(height, yellow_bottom_line[0], yellow_bottom_line[1]), height, calculate_x_from_y(height*2/3, yellow_bottom_line[0], yellow_bottom_line[1]), height*2/3)), line_color=(204,102,0))
+    lane_lines_image = display_lines(lane_lines_image, ((calculate_x_from_y(height*2/3, yellow_bottom_line[0], yellow_bottom_line[1]), height*2/3, calculate_x_from_y(height*0.5, yellow_bottom_line[0], yellow_bottom_line[1]), height*0.5)), line_color=(255,153,51))
+    lane_lines_image = display_lines(lane_lines_image, ((calculate_x_from_y(height*0.5, yellow_bottom_line[0], yellow_bottom_line[1]), height*0.5, calculate_x_from_y(height*1/3, yellow_bottom_line[0], yellow_bottom_line[1]), height*1/3)), line_color=(255,204,153))
 
-    lane_lines_image = display_lines(frame, lane_lines)
+    lane_lines_image = display_lines(lane_lines_image, ((calculate_x_from_y(height, blue_bottom_line[0], blue_bottom_line[1]), height, calculate_x_from_y(height*2/3, blue_bottom_line[0], blue_bottom_line[1]), height*2/3)), line_color=(0,153,153))
+    lane_lines_image = display_lines(lane_lines_image, ((calculate_x_from_y(height*2/3, blue_bottom_line[0], blue_bottom_line[1]), height*2/3, calculate_x_from_y(height*0.5, blue_bottom_line[0], blue_bottom_line[1]), height*0.5)), line_color=(0,255,255))
+    lane_lines_image = display_lines(lane_lines_image, ((calculate_x_from_y(height*0.5, blue_bottom_line[0], blue_bottom_line[1]), height*0.5, calculate_x_from_y(height*1/3, blue_bottom_line[0], blue_bottom_line[1]), height*1/3)), line_color=(153,255,255))
+
     show_image("lane lines", lane_lines_image)
 
-    return lane_lines, lane_lines_image
+    return (average_bottom_point, average_mid_point, average_top_point), lane_lines_image
 
+def calculate_x_from_y(y, gradient, intercept):
+    return (1/gradient)*(y-intercept)
+
+def split_lines(lines, height):
+    bottom = []
+    middle = []
+    top = []
+    for line in lines:
+        x1, y1, x2, y2 = line
+        #Make y2 always bottom (higher value) than y1
+        if y2 < y1:
+            temp = y1
+            y1 = y2
+            temp = y2
+
+        if y1 > height * 2/3:
+            bottom.append(line)
+        if y1 > height * 1/2 and y2 < height * 2/3:
+            middle.append(line)
+        if y2 < height * 1/2:
+            top.append(line)
+
+    return bottom, middle, top
+
+        
 
 def detect_edges(frame,low_thresh,high_thresh):
     # filter for  lane lines
@@ -263,6 +279,19 @@ def detect_line_segments(cropped_edges):
             logging.debug("%s of length %s" % (line_segment, length_of_line_segment(line_segment[0])))
 
     return line_segments
+
+def section_average_slope_intercept(line_segments):
+    """
+    Same logic as average_slope_intercept but without differentiating between left and right lines
+    (as we can split left and right lines by colour)
+    """
+    slopes = []
+    intercepts = []
+    for x1, y1, x2, y2 in line_segments:
+        gradient = (y2-y1)/(x2-x1)
+        slopes.append(gradient)
+        intercepts.append(y1-gradient*x1)
+    return (sum(slopes)/len(slopes), sum(intercepts)/len(intercepts))
 
 
 def average_slope_intercept(frame, line_segments):
