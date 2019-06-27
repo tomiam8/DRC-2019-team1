@@ -19,12 +19,12 @@ _SHOW_IMAGE = True
 
 #CONSTANTS
 #Threshold: yellow
-thresh_yellow_low = (17,73,56)
-thresh_yellow_high = (94,163,255)
+thresh_yellow_low = (15,45,130)
+thresh_yellow_high = (95,229,255)
 
 #Thresholds: blue
-thresh_blue_low = (31,44,88)
-thresh_blue_high = (146, 249, 188)
+thresh_blue_low = (73,46,130)
+thresh_blue_high = (128, 255, 242)
 
 class Arduino:
     def __init__(self):
@@ -62,7 +62,6 @@ class Arduino:
             #print(f"SENT SPEED: M{self.speed:03d} for speed {self.speed}")
             time.sleep(0.04)
             self.connection.write(f"S{self.angle:03d}".encode())
-            print(f"SENT ANGLE: S{self.angle:03d} for angle {self.angle}")
             time.sleep(0.04)
 
 class Camera:
@@ -159,16 +158,16 @@ def detect_lane(frame):
 
     # only focus bottom right half of the screen
     right_polygon = np.array([[
-        (width / 2, 200),
-        (width, 200),
+        (width / 2, 50),
+        (width, 50),
         (width, height),
         (width / 2, height)
     ]], np.int32)
 
     # only focus on the bottom left helf of the screen
     left_polygon = np.array([[
-        (0, 200),
-        (width / 2, 200),
+        (0, 50),
+        (width / 2, 50),
         (width / 2, height),
         (0, height)
     ]], np.int32)
@@ -178,16 +177,20 @@ def detect_lane(frame):
     yellow_cropped_edges_L = region_of_interest(yellow_edges, left_polygon)
     blue_cropped_edges_R = region_of_interest(blue_edges, right_polygon)
 
-    show_image('yellow edges cropped', yellow_cropped_edges_R)
-    show_image('blue edges cropped', blue_cropped_edges_L)
+    show_image('yellow edges right', yellow_cropped_edges_R)
+    show_image('blue edges left', blue_cropped_edges_L)
+    show_image('blue edges right', blue_cropped_edges_R)
+    show_image('yellow edges left', yellow_cropped_edges_L)
 
     yellow_line_segments_R = detect_line_segments(yellow_cropped_edges_R)
     blue_line_segments_R = detect_line_segments(blue_cropped_edges_R)
     yellow_line_segments_L = detect_line_segments(yellow_cropped_edges_L)
     blue_line_segments_L = detect_line_segments(blue_cropped_edges_L)
 
-    # line_segment_image = display_lines(frame, yellow_line_segments)
-    # show_image("yellow line segments", line_segment_image)
+    line_segment_image = display_lines(frame, yellow_line_segments_R)
+    show_image("yellow line segments", line_segment_image)
+    line_segment_image_blue = display_lines(frame, blue_line_segments_L)
+    show_image("blue line segments", line_segment_image_blue)
 
     yellow_lane_lines_R = average_slope_intercept(frame, yellow_line_segments_R)
     blue_lane_lines_R = average_slope_intercept(frame, blue_line_segments_R)
@@ -195,21 +198,25 @@ def detect_lane(frame):
     blue_lane_lines_L = average_slope_intercept(frame, blue_line_segments_L)
 
     if len(yellow_lane_lines_R) > 0 and len(blue_lane_lines_L) > 0:
+        print("Two lines")
         lane_lines = [yellow_lane_lines_R[0], blue_lane_lines_L[0]]
 
     elif len(yellow_lane_lines_R) > 0:
+        print("Yellow")
         lane_lines = [yellow_lane_lines_R[0]]
 
     elif len(blue_lane_lines_L) > 0:
+        print("blue")
         lane_lines = [blue_lane_lines_L[0]]
 
-    elif len(yellow_lane_lines_L) > 0:
-        lane_lines = [yellow_lane_lines_L[0]]
+    #elif len(yellow_lane_lines_L) > 0:
+        #lane_lines = [yellow_lane_lines_L[0]]
 
-    elif len(blue_lane_lines_R) > 0:
-        lane_lines = [blue_lane_lines_R[0]]
+    #elif len(blue_lane_lines_R) > 0:
+        #lane_lines = [blue_lane_lines_R[0]]
 
     else:
+        print("none")
         lane_lines = []
 
     lane_lines_image = display_lines(frame, lane_lines)
@@ -226,9 +233,9 @@ def detect_edges(frame,low_thresh,high_thresh):
     #show_image("filtered colour", mask)
 
     # detect edges
-    edges = cv2.Canny(mask, 200, 400)
+    #edges = cv2.Canny(mask, 200, 400)
 
-    return edges
+    return mask
 
 
 
@@ -247,8 +254,8 @@ def detect_line_segments(cropped_edges):
     rho = 1  # precision in pixel, i.e. 1 pixel
     angle = np.pi / 180  # degree in radian, i.e. 1 degree
     min_threshold = 10  # minimal of votes
-    line_segments = cv2.HoughLinesP(cropped_edges, rho, angle, min_threshold, np.array([]), minLineLength=8,
-                                    maxLineGap=4)
+    line_segments = cv2.HoughLinesP(cropped_edges, rho, angle, min_threshold, np.array([]), minLineLength=30,
+                                    maxLineGap=8)
 
     if line_segments is not None:
         for line_segment in line_segments:
@@ -337,7 +344,7 @@ def compute_steering_angle(frame, lane_lines):
 
 
 def stabilize_steering_angle(curr_steering_angle, new_steering_angle, num_of_lane_lines,
-                             max_angle_deviation_two_lines=5, max_angle_deviation_one_lane=1):
+                             max_angle_deviation_two_lines=20, max_angle_deviation_one_lane=20):
     """
     Using last steering angle to stabilize the steering angle
     This can be improved to use last N angles, etc
