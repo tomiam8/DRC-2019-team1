@@ -20,12 +20,12 @@ _SHOW_IMAGE = True
 
 #CONSTANTS
 #Threshold: yellow
-thresh_yellow_low = (15,45,130)
-thresh_yellow_high = (95,229,255)
+thresh_yellow_low = (20,19,161)
+thresh_yellow_high = (47,255,255)
 
 #Thresholds: blue
-thresh_blue_low = (73,46,130)
-thresh_blue_high = (128, 255, 242)
+thresh_blue_low = (96,30,147)
+thresh_blue_high = (145, 246, 239)
 
 class FakeArduino:
     def __init__(self):
@@ -60,10 +60,10 @@ class FakeArduino:
         while True:
             time.sleep(0.04)
             if self.send_speed:
-                print(f"M{self.speed:03d}")
+                #print(f"M{self.speed:03d}")
                 self.send_speed = False
                 time.sleep(0.04)
-            print(f"S{self.angle:03d}")
+            #print(f"S{self.angle:03d}")
             time.sleep(0.04)
 
 class Arduino:
@@ -113,7 +113,6 @@ class Stopper:
 
     def run(self):
         while True:
-            input("Press enter to stop:")
             self.arduino.update_speed(90)
             time.sleep(4)
             input("Press enter to start again:")
@@ -172,9 +171,9 @@ class HandCodedLaneFollower(object):
         self.arduino_thread = threading.Thread(target=self.arduino.run)
         self.arduino_thread.start()
 
-        self.stopper = Stopper(self.arduino)
-        self.stopper_thread = threading.Thread(target=self.stopper.run)
-        self.stopper_thread.start()
+        #self.stopper = Stopper(self.arduino)
+        #self.stopper_thread = threading.Thread(target=self.stopper.run)
+        #self.stopper_thread.start()
 
     def follow_lane(self, frame):
         # Main entry point of the lane follower
@@ -260,51 +259,72 @@ def detect_lane(frame):
     if yellow_bottom_line is not None:
         yellow_bottom_point = (1/yellow_bottom_line[0])*(height - yellow_bottom_line[1])
     else:
-        yellow_bottom_point = 0 #TODO replace 0 with None, do properly
+        yellow_bottom_point = None #TODO replace 0 with None, do properly
 
     if yellow_mid_line is not None:
         yellow_mid_point = (1/yellow_mid_line[0])*(height*2/3 - yellow_mid_line[1])
     else:
-        yellow_mid_point = 0
+        yellow_mid_point = None
 
     if yellow_top_line is not None:
         yellow_top_point = (1/yellow_top_line[0])*(height*0.5 - yellow_top_line[1])
     else:
-        yellow_top_point = 0
+        yellow_top_point = None
     
     
     if blue_bottom_line is not None:
         blue_bottom_point = (1/blue_bottom_line[0])*(height - blue_bottom_line[1])
     else:
-        blue_bottom_point = 0 #TODO replace 0 with None, do properly
+        blue_bottom_point = None #TODO replace 0 with None, do properly
 
     if blue_mid_line is not None:
         blue_mid_point = (1/blue_mid_line[0])*(height*2/3 - blue_mid_line[1])
     else:
-        blue_mid_point = 0
+        blue_mid_point = None
 
     if blue_top_line is not None:
         blue_top_point = (1/blue_top_line[0])*(height*0.5 - blue_top_line[1])
     else:
-        blue_top_point = 0
+        blue_top_point = None
 
 
-    average_bottom_point = (yellow_bottom_point + blue_bottom_point) / 2
-    average_mid_point = (yellow_mid_point + blue_mid_point) / 2
-    average_top_point = (yellow_top_point + blue_top_point) / 2
+    if yellow_bottom_point is not None and blue_bottom_point is not None:
+        average_bottom_point = (yellow_bottom_point + blue_bottom_point) / 2
+    else:
+        average_bottom_point = None
+    if yellow_mid_point is not None and blue_mid_point is not None:
+        average_mid_point = (yellow_mid_point + blue_mid_point) / 2
+    else:
+        average_mid_point = None
+    if yellow_top_point is not None and blue_top_point is not None:
+        average_top_point = (yellow_top_point + blue_top_point) / 2
+    else:
+        average_top_point = None
 
 
     #Display stuff
-    lane_lines_image = display_lines(frame, (((calculate_x_from_y(height, yellow_bottom_line[0], yellow_bottom_line[1]), height, calculate_x_from_y(height*2/3, yellow_bottom_line[0], yellow_bottom_line[1]), height*2/3),),), line_color=(204,102,0))
-    lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height*2/3, yellow_bottom_line[0], yellow_bottom_line[1]), height*2/3, calculate_x_from_y(height*0.5, yellow_bottom_line[0], yellow_bottom_line[1]), height*0.5),),), line_color=(255,153,51))
-    lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height*0.5, yellow_bottom_line[0], yellow_bottom_line[1]), height*0.5, calculate_x_from_y(height*1/3, yellow_bottom_line[0], yellow_bottom_line[1]), height*1/3),),), line_color=(255,204,153))
+    lane_lines_image = np.copy(frame)
+    if yellow_bottom_line is not None:
+        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height, yellow_bottom_line[0], yellow_bottom_line[1]), height, calculate_x_from_y(height*2/3, yellow_bottom_line[0], yellow_bottom_line[1]), height*2/3),),), line_color=(204,102,0))
+    if yellow_mid_line is not None:
+        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height*2/3, yellow_mid_line[0], yellow_mid_line[1]), height*2/3, calculate_x_from_y(height*0.5, yellow_mid_line[0], yellow_mid_line[1]), height*0.5),),), line_color=(255,153,51))
+    if yellow_top_line is not None:
+        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height*0.5, yellow_top_line[0], yellow_top_line[1]), height*0.5, calculate_x_from_y(height*1/3, yellow_top_line[0], yellow_top_line[1]), height*1/3),),), line_color=(255,204,153))
 
-    lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height, blue_bottom_line[0], blue_bottom_line[1]), height, calculate_x_from_y(height*2/3, blue_bottom_line[0], blue_bottom_line[1]), height*2/3),),), line_color=(0,153,153))
-    lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height*2/3, blue_bottom_line[0], blue_bottom_line[1]), height*2/3, calculate_x_from_y(height*0.5, blue_bottom_line[0], blue_bottom_line[1]), height*0.5),),), line_color=(0,255,255))
-    lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height*0.5, blue_bottom_line[0], blue_bottom_line[1]), height*0.5, calculate_x_from_y(height*1/3, blue_bottom_line[0], blue_bottom_line[1]), height*1/3),),), line_color=(153,255,255))
+    if blue_bottom_line is not None:
+        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height, blue_bottom_line[0], blue_bottom_line[1]), height, calculate_x_from_y(height*2/3, blue_bottom_line[0], blue_bottom_line[1]), height*2/3),),), line_color=(0,153,153))
+    if blue_mid_line is not None:
+        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height*2/3, blue_mid_line[0], blue_mid_line[1]), height*2/3, calculate_x_from_y(height*0.5, blue_mid_line[0], blue_mid_line[1]), height*0.5),),), line_color=(0,255,255))
+    if blue_top_line is not None:
+        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height*0.5, blue_top_line[0], blue_top_line[1]), height*0.5, calculate_x_from_y(height*1/3, blue_top_line[0], blue_top_line[1]), height*1/3),),), line_color=(153,255,255))
 
-    lane_lines_image = display_points(lane_lines_image, ((yellow_bottom_point, height*5/6), (yellow_mid_point, height*2/3), (yellow_top_point, height*0.5), (blue_bottom_point, height*5/6), (blue_mid_point, height*2/3), (blue_top_point, height*0.5)))
-    lane_lines_image = display_points(lane_lines_image, ((average_bottom_point, height*5/6), (average_mid_point, height*2/3), (average_top_point, height*0.5)), point_color=(127,0,255))
+    line_points = ((yellow_bottom_point, height*5/6), (yellow_mid_point, height*2/3), (yellow_top_point, height*0.5), (blue_bottom_point, height*5/6), (blue_mid_point, height*2/3), (blue_top_point, height*0.5))
+    line_points = [point for point in line_points if point[0] is not None]
+    lane_lines_image = display_points(lane_lines_image, line_points)
+
+    mid_points = ((average_bottom_point, height*5/6), (average_mid_point, height*2/3), (average_top_point, height*0.5))
+    mid_points = [point for point in mid_points if point[0] is not None]
+    lane_lines_image = display_points(lane_lines_image, mid_points, point_color=(127,0,255))
     show_image("lane lines", lane_lines_image)
 
     return (average_bottom_point, average_mid_point, average_top_point), lane_lines_image
@@ -329,7 +349,7 @@ def split_lines(lines, height):
         if y1 > height * 1/2 and y2 < height * 2/3:
             middle.append(line)
         if y2 < height * 1/2:
-            top.append((x1, y1, x2, y2))
+            top.append(line)
 
     return bottom, middle, top
 
@@ -364,7 +384,7 @@ def detect_line_segments(cropped_edges):
     rho = 1  # precision in pixel, i.e. 1 pixel
     angle = np.pi / 180  # degree in radian, i.e. 1 degree
     min_threshold = 10  # minimal of votes
-    line_segments = cv2.HoughLinesP(cropped_edges, rho, angle, min_threshold, np.array([]), minLineLength=30,
+    line_segments = cv2.HoughLinesP(cropped_edges, rho, angle, min_threshold, np.array([]), minLineLength=15,
                                     maxLineGap=8)
 
     if line_segments is not None:
@@ -383,13 +403,12 @@ def section_average_slope_intercept(line_segments):
     intercepts = []
     num_lines = len(line_segments)
     if num_lines == 0:
-        #return None
-        return (99999999, 0)
+        return None
     for line in line_segments:
-        x1, y1, x2, y2 = line
-        gradient = (y2-y1)/(x2-x1)
-        slopes.append(gradient)
-        intercepts.append(y1-gradient*x1)
+            x1, y1, x2, y2 = line[0]
+            gradient = (y2-y1)/(x2-x1)
+            slopes.append(gradient)
+            intercepts.append(y1-gradient*x1)
     return (sum(slopes)/num_lines, sum(intercepts)/num_lines)
 
 
@@ -504,20 +523,23 @@ def display_lines(frame, lines, line_color=(0, 255, 0), line_width=10):
     line_image = np.zeros_like(frame)
     if lines is not None:
         for line in lines:
-            x1 = int(line[0][0])
-            y1 = int(line[0][1])
-            x2 = int(line[0][2])
-            y2 = int(line[0][3])
-            cv2.line(line_image, (x1, y1), (x2, y2), line_color, line_width)
+            try:
+                x1 = int(line[0][0])
+                y1 = int(line[0][1])
+                x2 = int(line[0][2])
+                y2 = int(line[0][3])
+                cv2.line(line_image, (x1, y1), (x2, y2), line_color, line_width)
+            except (OverflowError, ValueError) as e:
+                print(e)
     line_image = cv2.addWeighted(frame, 1, line_image, 0.8, 1)
     return line_image
 
-def display_points(frame, points, point_color=(138,43,226), point_radius=3):
+def display_points(frame, points, point_color=(138,43,226), point_radius=6):
     point_image = np.zeros_like(frame)
     if points is not None:
         for point in points:
             try:
-                cv2.circle(point_image, (int(point[0]), int(point[1])), point_radius, point_color)
+                cv2.circle(point_image, (int(point[0]), int(point[1])), point_radius, point_color, thickness=point_radius)
             except (ValueError, OverflowError) as e:
                 print(e)
     point_image = cv2.addWeighted(frame, 1, point_image, 0.8, 1)
@@ -571,12 +593,30 @@ def make_points(frame, line):
     except OverflowError:
         return [[-width, y1, -width, y1]]
 
+class File_Inputter:
+    def __init__(self):
+        self.frame_counter = 0
+        self.frame_goal = 1
+        self.prev_increment = 50
+    
+    def next_frame_counter(self):
+        while True:
+            leInput = input("At frame {}: ".format(self.frame_goal))
+            if leInput == "":
+                self.frame_goal += self.prev_increment
+            else:
+                try:
+                    self.frame_goal += int(leInput)
+                    self.prev_increment = int(leInput)
+                except ValueError:
+                    pass
 
 cap=cv2.VideoCapture("test5.mp4")
 video_file='test5'
+frame_input = File_Inputter()
+_thread.start_new_thread(frame_input.next_frame_counter, tuple())
 lane_follower = HandCodedLaneFollower()
 print("Running...")
-
 
 def main():
     time.sleep(3)
@@ -588,7 +628,10 @@ def main():
     while cap.isOpened():
     #while (True):
 
-            _, frame = cap.read()
+            if frame_input.frame_counter < frame_input.frame_goal:
+                _, frame = cap.read()
+                frame_input.frame_counter += 1
+            
             #frame, depth_frame, frameset = getframes(pipe)
             combo_image = lane_follower.follow_lane(frame)
             cv2.imshow("Road with Lane line", combo_image)
