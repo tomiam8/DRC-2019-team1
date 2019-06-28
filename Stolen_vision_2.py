@@ -171,9 +171,9 @@ class HandCodedLaneFollower(object):
         self.arduino_thread = threading.Thread(target=self.arduino.run)
         self.arduino_thread.start()
 
-        #self.stopper = Stopper(self.arduino)
-        #self.stopper_thread = threading.Thread(target=self.stopper.run)
-        #self.stopper_thread.start()
+        self.stopper = Stopper(self.arduino)
+        self.stopper_thread = threading.Thread(target=self.stopper.run)
+        self.stopper_thread.start()
 
     def follow_lane(self, frame):
         # Main entry point of the lane follower
@@ -611,10 +611,10 @@ class File_Inputter:
                 except ValueError:
                     pass
 
-cap=cv2.VideoCapture("test5.mp4")
-video_file='test5'
-frame_input = File_Inputter()
-_thread.start_new_thread(frame_input.next_frame_counter, tuple())
+#cap=cv2.VideoCapture("test5.mp4")
+#video_file='test5'
+#frame_input = File_Inputter()
+#_thread.start_new_thread(frame_input.next_frame_counter, tuple())
 lane_follower = HandCodedLaneFollower()
 print("Running...")
 
@@ -623,16 +623,16 @@ def main():
 
     LIVE = True
     file = "xyz.bag"
-    #pipe, config, profile = setupstream(LIVE, file)
+    pipe, config, profile = setupstream(LIVE, file)
 
-    while cap.isOpened():
-    #while (True):
+    #while cap.isOpened():
+    while (True):
 
-            if frame_input.frame_counter < frame_input.frame_goal:
+            """if frame_input.frame_counter < frame_input.frame_goal:
                 _, frame = cap.read()
-                frame_input.frame_counter += 1
+                frame_input.frame_counter += 1"""
             
-            #frame, depth_frame, frameset = getframes(pipe)
+            frame, depth_frame, frameset = getframes(pipe)
             combo_image = lane_follower.follow_lane(frame)
             cv2.imshow("Road with Lane line", combo_image)
 
