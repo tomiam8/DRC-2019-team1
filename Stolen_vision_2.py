@@ -29,8 +29,10 @@ thresh_blue_high = (128, 255, 242)
 class Arduino:
     def __init__(self):
         self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
-        self.speed = 100
+        self.speed = 80
+        self.update_speed = True
         self.angle = 90
+        self.update_angle = True
 
     def update_speed(self, speed):
         if speed > 180:
@@ -38,6 +40,7 @@ class Arduino:
         elif speed < 0:
             speed = 0
         self.speed = int(speed)
+        self.update_speed = True
 
     def update_angle(self, angle):
         if angle > 180:
@@ -57,12 +60,24 @@ class Arduino:
         while True:
             self.connection.write(b"D000")
             time.sleep(0.04)
-            #self.connection.write(f"M{self.speed:03d}".encode())
-            self.connection.write("M100".encode())
-            #print(f"SENT SPEED: M{self.speed:03d} for speed {self.speed}")
-            time.sleep(0.04)
+            if self.update_speed:
+                self.connection.write(f"M{self.speed:03d}".encode())
+                self.update_speed = False
+                time.sleep(0.04)
             self.connection.write(f"S{self.angle:03d}".encode())
             time.sleep(0.04)
+
+class Stopper:
+    def __init__(self, arduino):
+        self.arduino = arduino
+
+    def run(self):
+        while True:
+            input("Press enter to stop:")
+            self.arduino.update_speed(90)
+            time.sleep(4)
+            input("Press enter to start again:")
+            self.arduino.update_speed(80)
 
 class Camera:
     def __init__(self):
@@ -117,12 +132,17 @@ class HandCodedLaneFollower(object):
         self.arduino_thread = threading.Thread(target=self.arduino.run)
         self.arduino_thread.start()
 
+        self.stopper = Stopper(self.arduino)
+        self.stopper_thread = threading.Thread(target=self.stopper.run)
+        self.stopper_thread.start()
+
     def follow_lane(self, frame):
         # Main entry point of the lane follower
         #show_image("orig", frame)
 
         lane_lines, frame = detect_lane(frame)
-        final_frame = self.steer(frame, lane_lines)
+        #final_frame = self.steer(frame, lane_lines)
+        final_frame = frame
 
         return final_frame
 
