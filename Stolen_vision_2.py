@@ -7,6 +7,7 @@ import threading
 import _thread
 import time
 import serial
+import traceback #TODO remove
 
 import pyrealsense2 as rs
 import sys
@@ -30,9 +31,9 @@ class Arduino:
     def __init__(self):
         self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
         self.speed = 80
-        self.update_speed = True
+        self.send_speed = True
         self.angle = 90
-        self.update_angle = True
+        self.send_angle = True
 
     def update_speed(self, speed):
         if speed > 180:
@@ -40,7 +41,7 @@ class Arduino:
         elif speed < 0:
             speed = 0
         self.speed = int(speed)
-        self.update_speed = True
+        self.send_speed = True
 
     def update_angle(self, angle):
         if angle > 180:
@@ -60,9 +61,9 @@ class Arduino:
         while True:
             self.connection.write(b"D000")
             time.sleep(0.04)
-            if self.update_speed:
+            if self.send_speed:
                 self.connection.write(f"M{self.speed:03d}".encode())
-                self.update_speed = False
+                self.send_speed = False
                 time.sleep(0.04)
             self.connection.write(f"S{self.angle:03d}".encode())
             time.sleep(0.04)
@@ -140,7 +141,12 @@ class HandCodedLaneFollower(object):
         # Main entry point of the lane follower
         #show_image("orig", frame)
 
-        lane_lines, frame = detect_lane(frame)
+        try:
+            lane_lines, frame = detect_lane(frame)
+        except KeyboardInterrupt:
+            sys.exit()
+        except Exception as e:
+            traceback.print_exc()
         #final_frame = self.steer(frame, lane_lines)
         final_frame = frame
 
@@ -193,8 +199,13 @@ def detect_lane(frame):
     yellow_line_segments = detect_line_segments(yellow_cropped)
     blue_line_segments = detect_line_segments(blue_cropped)
 
+    if yellow_line_segments is None:
+        yellow_line_segments = []
+    if blue_line_segments is None:
+        blue_line_segments = []
+
     line_segment_image_yellow = display_lines(frame, yellow_line_segments)
-    show_image("yellow line segments", line_segment_image)
+    show_image("yellow line segments", line_segment_image_yellow)
     line_segment_image_blue = display_lines(frame, blue_line_segments)
     show_image("blue line segments", line_segment_image_blue)
 
@@ -247,7 +258,7 @@ def split_lines(lines, height):
     middle = []
     top = []
     for line in lines:
-        x1, y1, x2, y2 = line
+        x1, y1, x2, y2 = line[0]
         #Make y2 always bottom (higher value) than y1
         if y2 < y1:
             temp = y1
@@ -311,11 +322,14 @@ def section_average_slope_intercept(line_segments):
     """
     slopes = []
     intercepts = []
+    num_lines = len(line_segments)
+    if len(num_lines) == 0:
+        return None
     for x1, y1, x2, y2 in line_segments:
         gradient = (y2-y1)/(x2-x1)
         slopes.append(gradient)
         intercepts.append(y1-gradient*x1)
-    return (sum(slopes)/len(slopes), sum(intercepts)/len(intercepts))
+    return (sum(slopes)/num_lines, sum(intercepts)/num_lines)
 
 
 def average_slope_intercept(frame, line_segments):
