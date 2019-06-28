@@ -223,6 +223,8 @@ def detect_lane(frame):
     average_mid_point = (yellow_mid_point + blue_mid_point) / 2
     average_top_point = (yellow_top_point + blue_top_point) / 2
 
+
+    #Display stuff
     lane_lines_image = display_lines(frame, ((calculate_x_from_y(height, yellow_bottom_line[0], yellow_bottom_line[1]), height, calculate_x_from_y(height*2/3, yellow_bottom_line[0], yellow_bottom_line[1]), height*2/3)), line_color=(204,102,0))
     lane_lines_image = display_lines(lane_lines_image, ((calculate_x_from_y(height*2/3, yellow_bottom_line[0], yellow_bottom_line[1]), height*2/3, calculate_x_from_y(height*0.5, yellow_bottom_line[0], yellow_bottom_line[1]), height*0.5)), line_color=(255,153,51))
     lane_lines_image = display_lines(lane_lines_image, ((calculate_x_from_y(height*0.5, yellow_bottom_line[0], yellow_bottom_line[1]), height*0.5, calculate_x_from_y(height*1/3, yellow_bottom_line[0], yellow_bottom_line[1]), height*1/3)), line_color=(255,204,153))
@@ -231,6 +233,8 @@ def detect_lane(frame):
     lane_lines_image = display_lines(lane_lines_image, ((calculate_x_from_y(height*2/3, blue_bottom_line[0], blue_bottom_line[1]), height*2/3, calculate_x_from_y(height*0.5, blue_bottom_line[0], blue_bottom_line[1]), height*0.5)), line_color=(0,255,255))
     lane_lines_image = display_lines(lane_lines_image, ((calculate_x_from_y(height*0.5, blue_bottom_line[0], blue_bottom_line[1]), height*0.5, calculate_x_from_y(height*1/3, blue_bottom_line[0], blue_bottom_line[1]), height*1/3)), line_color=(153,255,255))
 
+    lane_lines_image = display_points(lane_lines_image, (yellow_bottom_point, yellow_mid_point, yellow_top_point, blue_bottom_point, blue_mid_point, blue_top_point))
+    lane_lines_image = display_points(lane_lines_image, (average_bottom_point, average_mid_point, average_top_point), line_color=(127,0,255))
     show_image("lane lines", lane_lines_image)
 
     return (average_bottom_point, average_mid_point, average_top_point), lane_lines_image
@@ -430,8 +434,15 @@ def display_lines(frame, lines, line_color=(0, 255, 0), line_width=10):
     line_image = cv2.addWeighted(frame, 0.8, line_image, 1, 1)
     return line_image
 
+def display_points(frame, points, point_color=(138,43,226), point_radius=3):
+    point_image = np.zeros_like(frame)
+    if points is not None:
+        for point in points:
+            cv2.circle(point_image, point, point_radius, point_color, -1)
+    point_image = cv2.addWeighted(frame, 0.8, point_image, 1, 1)
+    return point_image
 
-def display_heading_line(frame, steering_angle, line_color=(0, 0, 255), line_width=5, ):
+def display_heading_line(frame, steering_angle, line_color=(0, 0, 255), line_width=5):
     heading_image = np.zeros_like(frame)
     height, width, _ = frame.shape
 
