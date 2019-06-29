@@ -20,7 +20,7 @@ _SHOW_IMAGE = True
 
 #CONSTANTS
 #Threshold: yellow
-thresh_yellow_low = (20,19,161)
+thresh_yellow_low = (20,30,161)
 thresh_yellow_high = (47,255,255)
 
 #Thresholds: blue
@@ -257,6 +257,15 @@ def detect_lane(frame):
     show_image("blue line top segments", blue_top_image)
     blue_mid_image = display_lines(frame, blue_mid)
     show_image("blue mid segments", blue_mid_image)
+    blue_bottom_image = display_lines(frame, blue_bottom)
+    show_image("blue bottom segments", blue_bottom_image)
+
+    yellow_top_image = display_lines(frame, yellow_top)
+    show_image("yellow line top segments", yellow_top_image)
+    yellow_mid_image = display_lines(frame, yellow_mid)
+    show_image("yellow mid segments", yellow_mid_image)
+    yellow_bottom_image = display_lines(frame, yellow_bottom)
+    show_image("yellow bottom segments", yellow_bottom_image)
 
     yellow_bottom_line = section_average_slope_intercept(yellow_bottom, height*5/6) #returns (gradient, intercept)
     yellow_mid_line = section_average_slope_intercept(yellow_mid, height*2/3)
@@ -309,6 +318,8 @@ def detect_lane(frame):
 
     if yellow_bottom_point is not None and blue_bottom_point is not None:
         average_bottom_point = (yellow_bottom_point + blue_bottom_point) / 2
+    #elif yellow_bottom_point is not None:
+    #    average_bottom_point = 
     else:
         average_bottom_point = None
     if yellow_mid_point is not None and blue_mid_point is not None:
@@ -417,8 +428,8 @@ def detect_line_segments(cropped_edges):
     rho = 1  # precision in pixel, i.e. 1 pixel
     angle = np.pi / 180  # degree in radian, i.e. 1 degree
     min_threshold = 10  # minimal of votes
-    line_segments = cv2.HoughLinesP(cropped_edges, rho, angle, min_threshold, np.array([]), minLineLength=25,
-                                    maxLineGap=8)
+    line_segments = cv2.HoughLinesP(cropped_edges, rho, angle, min_threshold, np.array([]), minLineLength=20,
+                                    maxLineGap=4)
 
     if line_segments is not None:
         for line_segment in line_segments:
@@ -445,7 +456,7 @@ def section_average_slope_intercept(line_segments, goal_height):
     for line in line_segments:
             x1, y1, x2, y2 = line[0]
             if (x2==x1):
-                angles.append(math.pi)
+                angles.append(math.pi/2)
                 distances.append(x1)
             elif (y2 == y1):
                 angles.append(0)
@@ -453,23 +464,46 @@ def section_average_slope_intercept(line_segments, goal_height):
             else:
                 angles.append(math.atan((y2-y1)/(x2-x1)))
                 #Distance calculation - find general form values (set a to 1).
-                b = (x2-x1)/(y2-y1)
-                c = y1*b - x1
-                distances.append(((b*goal_height + c)**2)/(1+b**2))
-
-    average_angle = sum(angles)/num_lines
+                b = -(x2-x1)/(y2-y1)
+                c = -y1*b - x1
+                distances.append(((b*goal_height + c))/math.sqrt(1+b**2))
+    
+    #Average 
+    #Find number of data points to include in average:
+    data_point_num = num_lines - round(num_lines*0.5)
+    if (num_lines%2==0 and data_point_num%2==1) or (num_lines%2==1 and data_point_num%2==0):
+        data_point_num += 1
+    start = int((num_lines - data_point_num)/2)
+    end = num_lines - start
+    
     angles.sort()
-    average_angle = angles[int(num_lines/2)]
-    average_distance = math.sqrt(sum(distances)/num_lines)
+    average_angle = sum(angles[start:end])/data_point_num
     distances.sort()
+    average_distance = sum(distances[start:end])/data_point_num
+
+    #Check 2/3rds of angles are within pi/8 radians
+    fail_num = 0
+    for angle in angles:
+        if angle - average_angle > math.pi/8 or angle - average_angle < -math.pi/8:
+            fail_num += 1
+    if fail_num > num_lines*2/3:
+        return None
+    fail_num = 0
+    for distance in distances:
+        if abs(distance - average_distance) > 25:
+            fail_num += 1
+    if fail_num > num_lines*2/3:
+        return None
+    
     #average_distance = distances[int(num_lines/2)]
     if average_angle == math.pi/2: #Average still vertical:
-        gradient = 65536 #idk seems like a large enough number?
-    elif average_angle == 0:
+        average_gradient = 1024 #idk seems like a large enough number?
+        average_intercept = -average_distance*math.sqrt(average_gradient**2 + 1) + goal_height
+    elif average_angle == 0 or abs(average_angle) == math.pi:
         return None #Probably should do better something for horizontal lines than just giving up
     else:
         average_gradient = math.tan(average_angle)
-    average_intercept = average_distance*math.sqrt(average_gradient**2 + 1)* (-1 if average_gradient > 0 else 1) - goal_height
+        average_intercept = average_distance*math.sqrt(average_gradient**2 + 1)* (-1 if average_gradient < 0 else 1) + goal_height
     return average_gradient, average_intercept
 
 

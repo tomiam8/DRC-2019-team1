@@ -182,7 +182,7 @@ class File_Inputter:
                     pass
 
 
-run_from_file = False
+run_from_file = True
 
 try:
     if not run_from_file: #Do from camera
