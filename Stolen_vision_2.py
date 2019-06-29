@@ -437,21 +437,40 @@ def section_average_slope_intercept(line_segments, goal_height):
     and idk what to do.)
     Potential improvement if lines aren't averaging well - average angle and distance from origin to closest point on the line.
     """
-    x_values = []
-    y_values = []
+    angles = []
     distances = []
     num_lines = len(line_segments)
     if num_lines == 0:
         return None
     for line in line_segments:
             x1, y1, x2, y2 = line[0]
-            x_values.append(x1)
-            y_values.append(y1)
-            x_values.append(x2)
-            y_values.append(y2)
-    
-    poly = list(np.polynomial.polynomial.Polynomial.fit(x_values, y_values, 1))
-    return poly[1], poly[0]
+            if (x2==x1):
+                angles.append(math.pi)
+                distances.append(x1)
+            elif (y2 == y1):
+                angles.append(0)
+                distances.append(y1)
+            else:
+                angles.append(math.atan((y2-y1)/(x2-x1)))
+                #Distance calculation - find general form values (set a to 1).
+                b = (x2-x1)/(y2-y1)
+                c = y1*b - x1
+                distances.append(((b*goal_height + c)**2)/(1+b**2))
+
+    average_angle = sum(angles)/num_lines
+    angles.sort()
+    average_angle = angles[int(num_lines/2)]
+    average_distance = math.sqrt(sum(distances)/num_lines)
+    distances.sort()
+    #average_distance = distances[int(num_lines/2)]
+    if average_angle == math.pi/2: #Average still vertical:
+        gradient = 65536 #idk seems like a large enough number?
+    elif average_angle == 0:
+        return None #Probably should do better something for horizontal lines than just giving up
+    else:
+        average_gradient = math.tan(average_angle)
+    average_intercept = average_distance*math.sqrt(average_gradient**2 + 1)* (-1 if average_gradient > 0 else 1) - goal_height
+    return average_gradient, average_intercept
 
 
 def average_slope_intercept(frame, line_segments):
