@@ -28,7 +28,7 @@ thresh_yellow_low = (20, 30, 161)
 thresh_yellow_high = (47, 255, 255)
 
 #Thresholds: blue
-thresh_blue_low = (96, 30, 147),
+thresh_blue_low = (96, 30, 147)
 thresh_blue_high = (145, 246, 239)
 
 #Thresholds: Purple (obstacle)
@@ -222,9 +222,9 @@ class HandCodedLaneFollower(object):
 
         yellow_points, blue_points, lane_lines_image = detect_lane(frame)
 
-        midpoints = calculate_midpoints(yellow_points, blue_points)
+        mid_points = calculate_midpoints(yellow_points, blue_points)
 
-        obstacle = detect_obstacle(frame)
+        """obstacle = detect_obstacle(frame)
         if obstacle is not None:
             _, _, rect = obstacle
             x_values = [x[0] for x in rect[0]]
@@ -260,7 +260,7 @@ class HandCodedLaneFollower(object):
                         #Just go to the right
                         onLeft = False
             #TODO actually go to the left / right
-                        
+            """
 
         # Draw mid points
         mid_points_draw = (
@@ -656,7 +656,7 @@ def split_lines(lines, height):
 def detect_edges(frame, low_thresh, high_thresh):
     # filter for  lane lines
     #show_image("hsv", hsv)
-    mask = cv2.inRange(hsv, low_thresh, high_thresh)
+    mask = cv2.inRange(frame, low_thresh, high_thresh)
     #show_image("filtered colour", mask)
 
     # detect edges
@@ -996,10 +996,10 @@ class File_Inputter:
                     pass
 
 
-cap = cv2.VideoCapture("test5.mp4")
-video_file = 'test5'
-frame_input = File_Inputter()
-_thread.start_new_thread(frame_input.next_frame_counter, tuple())
+#cap = cv2.VideoCapture("test5.mp4")
+#video_file = 'test5'
+#frame_input = File_Inputter()
+#_thread.start_new_thread(frame_input.next_frame_counter, tuple())
 lane_follower = HandCodedLaneFollower()
 print("Running...")
 
@@ -1009,18 +1009,18 @@ def main():
 
     LIVE = True
     file = "xyz.bag"
-    #pipe, config, profile = setupstream(LIVE, file)
+    pipe, config, profile = setupstream(LIVE, file)
 
-    while cap.isOpened():
-        # while (True):
+    #while cap.isOpened():
+    while (True):
 
-        if frame_input.frame_counter < frame_input.frame_goal:
+        """if frame_input.frame_counter < frame_input.frame_goal:
             _, frame = cap.read()
-            frame_input.frame_counter += 1
+            frame_input.frame_counter += 1"""
 
-        #frame, depth_frame, frameset = getframes(pipe)
-        combo_image = lane_follower.follow_lane(frame)
-        time.sleep(0.04)
+        frame, depth_frame, frameset = getframes(pipe)
+        #combo_image = lane_follower.follow_lane(frame)
+        #time.sleep(0.04)
 
         if cv2.waitKey(25) & 0xff == ord('q'):
             cv2.destroyAllWindows()
