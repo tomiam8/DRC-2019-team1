@@ -34,7 +34,7 @@ height = 180
 #Zoning (constants to split into top/middle/bottom sections)
 top_mask = height*1/6
 section_half_height = (height - top_mask)*1/8
-section_overlap = section_half_height * 1/2
+section_overlap = section_half_height * 1/4
 border_top = top_mask
 top_goal = top_mask + section_half_height
 border_middle_top = top_mask + section_half_height*2
@@ -195,7 +195,66 @@ class HandCodedLaneFollower(object):
         # Main entry point of the lane follower
         #show_image("orig", frame)
 
-        lane_lines, frame = detect_lane(frame)
+        yellow_points, blue_points, lane_lines_image = detect_lane(frame) #points = (bottom, middle, top) x values
+        mid_points = [None, None, None]
+        yellow_goal_points = (310, 300, 290) #TODO find empirically
+        blue_goal_points = (10, 20, 30)
+
+        found_midpoints = 0
+        for counter in range(3):
+            if yellow_points[counter] is not None and blue_points[counter] is not None:
+                mid_points[counter] = (yellow_points[counter] + blue_points[counter])/2
+                found_midpoints += 1
+        
+        if found_midpoints == 0: #Just go off estimates
+            for counter in range(3):
+                if yellow_points[counter] is not None:
+                    mid_points[counter] = width/2 + yellow_points[counter] - yellow_goal_points[counter]
+                elif blue_points[counter] is not None:
+                    mid_points[counter] = width/2 + blue_points[counter] - blue_goal_points[counter]
+        
+        elif found_midpoints == 1: #Use offset from the single midpoint
+            #Find which one has the midpoint
+            midpoint = None
+            for point in range(3):
+                if mid_points[point] is not None:
+                    midpoint = point
+            
+            for counter in range(3):
+                if mid_points[counter] is None:
+                    if yellow_points[counter] is not None:
+                        mid_points[counter] = mid_points[midpoint] + (yellow_goal_points[midpoint] - yellow_goal_points[counter]) - (yellow_points[midpoint] - yellow_points[counter])
+                    elif blue_points[counter] is not None:
+                        mid_points[counter] = mid_points[midpoint] + (blue_goal_points[midpoint] - blue_goal_points[counter]) - (blue_points[midpoint] - blue_points[counter])
+        
+        elif found_midpoints == 2:
+            first_midpoint = None
+            second_midpoint = None
+            for point in range(3):
+                if mid_points[point] is not None:
+                    if first_midpoint is None:
+                        first_midpoint = point
+                    else:
+                        second_midpoint = point
+            
+            #Find the expected gradient of the line
+            try:
+                m = (second_midpoint-first_midpoint)/(mid_points[second_midpoint] - mid_points[first_midpoint])
+            except ZeroDivisionError:
+                m = 1024
+            b = first_midpoint - m*mid_points[first_midpoint]
+            for counter in range(3):
+                if mid_points[counter] is None:
+                    if yellow_points[counter] is not None:
+                        mid_points[counter] = (1/m)*(counter-b)
+
+        #Draw mid points
+        mid_points_draw = ((mid_points[0], bottom_goal), (mid_points[1], middle_goal), (mid_points[2], top_goal))
+        mid_points_draw = [point for point in mid_points_draw if point[0] is not None]
+        lane_lines_image = display_points(lane_lines_image, mid_points_draw, point_color=(127,0,255))
+        show_image("Mid points", lane_lines_image)
+
+        #Do steering stuff
         #final_frame = self.steer(frame, lane_lines)
         final_frame = frame
 
@@ -341,23 +400,6 @@ def detect_lane(frame):
             if not (width*-1/4 < point < width):
                 point = None
 
-
-    if yellow_bottom_point is not None and blue_bottom_point is not None:
-        average_bottom_point = (yellow_bottom_point + blue_bottom_point) / 2
-    #elif yellow_bottom_point is not None:
-    #    average_bottom_point = 
-    else:
-        average_bottom_point = None
-    if yellow_mid_point is not None and blue_mid_point is not None:
-        average_mid_point = (yellow_mid_point + blue_mid_point) / 2
-    else:
-        average_mid_point = None
-    if yellow_top_point is not None and blue_top_point is not None:
-        average_top_point = (yellow_top_point + blue_top_point) / 2
-    else:
-        average_top_point = None
-
-
     #Display stuff
     lane_lines_image = np.copy(frame)
     if yellow_bottom_line is not None:
@@ -378,12 +420,9 @@ def detect_lane(frame):
     line_points = [point for point in line_points if point[0] is not None]
     lane_lines_image = display_points(lane_lines_image, line_points)
 
-    mid_points = ((average_bottom_point, bottom_goal), (average_mid_point, middle_goal), (average_top_point, top_goal))
-    mid_points = [point for point in mid_points if point[0] is not None]
-    lane_lines_image = display_points(lane_lines_image, mid_points, point_color=(127,0,255))
     show_image("lane lines", lane_lines_image)
 
-    return (average_bottom_point, average_mid_point, average_top_point), lane_lines_image
+    return (yellow_bottom_point, yellow_mid_point, yellow_top_point), (blue_bottom_point, blue_mid_point, blue_top_point), lane_lines_image
 
 def calculate_x_from_y(y, gradient, intercept):
     return (1/gradient)*(y-intercept)
@@ -745,7 +784,6 @@ def main():
             
             #frame, depth_frame, frameset = getframes(pipe)
             combo_image = lane_follower.follow_lane(frame)
-            cv2.imshow("Road with Lane line", combo_image)
             time.sleep(0.04)
 
             if cv2.waitKey(25) & 0xff == ord('q'):
