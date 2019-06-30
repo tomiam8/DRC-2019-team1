@@ -27,6 +27,22 @@ thresh_yellow_high = (47,255,255)
 thresh_blue_low = (96,30,147)
 thresh_blue_high = (145, 246, 239)
 
+#Image size
+width = 320
+height = 180
+
+#Zoning (constants to split into top/middle/bottom sections)
+top_mask = height*1/6
+section_half_height = (height - top_mask)*1/8
+section_overlap = section_half_height * 1/2
+border_top = top_mask
+top_goal = top_mask + section_half_height
+border_middle_top = top_mask + section_half_height*2
+middle_goal = top_mask + section_half_height*3
+border_middle_bottom = top_mask + section_half_height*4
+bottom_goal = top_mask + section_half_height*5
+border_bottom = top_mask + section_half_height*6
+
 class FakeArduino:
     def __init__(self):
         self.speed = 80
@@ -207,19 +223,17 @@ class HandCodedLaneFollower(object):
 def detect_lane(frame):
     logging.debug('detecting lane lines...')
 
-    frame = cv2.resize(frame, (320, 180), interpolation=cv2.INTER_NEAREST)
+    frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_NEAREST)
     yellow_edges = detect_edges(frame,thresh_yellow_low,thresh_yellow_high)
     blue_edges = detect_edges(frame,thresh_blue_low,thresh_blue_high)
 
     #show_image('yellow edges', yellow_edges)
     #show_image('blue edges', blue_edges)
 
-    height,width=yellow_edges.shape
-
     #Crop out top of image
     crop_polygon = np.array([[
-        (0, height / 3),
-        (width, height / 3),
+        (0, top_mask),
+        (width, top_mask),
         (width, height),
         (0, height)
     ]], np.int32)
@@ -251,7 +265,7 @@ def detect_lane(frame):
     yellow_bottom, yellow_mid, yellow_top = split_lines(yellow_line_segments, height)
     blue_bottom, blue_mid, blue_top = split_lines(blue_line_segments, height)
 
-    frame = display_lines(frame, (((0, height*1/3, width, height*1/3),), ((0, height*1/2, width, height*1/2),), ((0, height*2/3, width, height*2/3),), ((0, height*5/6, width, height*5/6),)), line_color=(255,255,255), line_width=1)
+    frame = display_lines(frame, (((0, border_top, width, border_top),), ((0, top_goal, width, top_goal),), ((0, border_middle_top, width, border_middle_top),), ((0, middle_goal, width, middle_goal),), ((0, border_middle_bottom, width, border_middle_bottom),), ((0, bottom_goal, width, bottom_goal),), ((0, border_bottom, width, border_bottom),)), line_color=(255,255,255), line_width=1)
 
     blue_top_image = display_lines(frame, blue_top)
     show_image("blue line top segments", blue_top_image)
@@ -267,13 +281,13 @@ def detect_lane(frame):
     yellow_bottom_image = display_lines(frame, yellow_bottom)
     show_image("yellow bottom segments", yellow_bottom_image)
 
-    yellow_bottom_line = section_average_slope_intercept(yellow_bottom, height*5/6) #returns (gradient, intercept)
-    yellow_mid_line = section_average_slope_intercept(yellow_mid, height*2/3)
-    yellow_top_line = section_average_slope_intercept(yellow_top, height*1/2)
+    yellow_bottom_line = section_average_slope_intercept(yellow_bottom, bottom_goal) #returns (gradient, intercept)
+    yellow_mid_line = section_average_slope_intercept(yellow_mid, middle_goal)
+    yellow_top_line = section_average_slope_intercept(yellow_top, top_goal)
 
-    blue_bottom_line = section_average_slope_intercept(blue_bottom, height*5/6) #returns (gradient, intercept)
-    blue_mid_line = section_average_slope_intercept(blue_mid, height*2/3)
-    blue_top_line = section_average_slope_intercept(blue_top, height*1/2)
+    blue_bottom_line = section_average_slope_intercept(blue_bottom, bottom_goal) #returns (gradient, intercept)
+    blue_mid_line = section_average_slope_intercept(blue_mid, middle_goal)
+    blue_top_line = section_average_slope_intercept(blue_top, top_goal)
     
     """yellow_bottom_line = average_slope_intercept(frame, yellow_bottom) #returns (gradient, intercept)
     yellow_mid_line = average_slope_intercept(frame, yellow_mid)
@@ -285,35 +299,47 @@ def detect_lane(frame):
 
     #Subbing in for x (y=mx+b style)
     if yellow_bottom_line is not None:
-        yellow_bottom_point = (1/yellow_bottom_line[0])*(height - yellow_bottom_line[1])
+        yellow_bottom_point = (1/yellow_bottom_line[0])*(bottom_goal - yellow_bottom_line[1])
     else:
         yellow_bottom_point = None
 
     if yellow_mid_line is not None:
-        yellow_mid_point = (1/yellow_mid_line[0])*(height*2/3 - yellow_mid_line[1])
+        yellow_mid_point = (1/yellow_mid_line[0])*(middle_goal - yellow_mid_line[1])
     else:
         yellow_mid_point = None
 
     if yellow_top_line is not None:
-        yellow_top_point = (1/yellow_top_line[0])*(height*0.5 - yellow_top_line[1])
+        yellow_top_point = (1/yellow_top_line[0])*(top_goal - yellow_top_line[1])
     else:
         yellow_top_point = None
     
     
     if blue_bottom_line is not None:
-        blue_bottom_point = (1/blue_bottom_line[0])*(height - blue_bottom_line[1])
+        blue_bottom_point = (1/blue_bottom_line[0])*(bottom_goal - blue_bottom_line[1])
     else:
         blue_bottom_point = None #TODO replace 0 with None, do properly
 
     if blue_mid_line is not None:
-        blue_mid_point = (1/blue_mid_line[0])*(height*2/3 - blue_mid_line[1])
+        blue_mid_point = (1/blue_mid_line[0])*(middle_goal - blue_mid_line[1])
     else:
         blue_mid_point = None
 
     if blue_top_line is not None:
-        blue_top_point = (1/blue_top_line[0])*(height*0.5 - blue_top_line[1])
+        blue_top_point = (1/blue_top_line[0])*(top_goal - blue_top_line[1])
     else:
         blue_top_point = None
+
+    yellow_points = (yellow_bottom_point, yellow_mid_point, yellow_top_point)
+    blue_points = (blue_bottom_point, blue_mid_point, blue_top_point)
+
+    for point in yellow_points:
+        if point is not None:
+            if not (0 < point < width*5/4):
+                point = None
+    for point in blue_points:
+        if point is not None:
+            if not (width*-1/4 < point < width):
+                point = None
 
 
     if yellow_bottom_point is not None and blue_bottom_point is not None:
@@ -335,24 +361,24 @@ def detect_lane(frame):
     #Display stuff
     lane_lines_image = np.copy(frame)
     if yellow_bottom_line is not None:
-        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height, yellow_bottom_line[0], yellow_bottom_line[1]), height, calculate_x_from_y(height*2/3, yellow_bottom_line[0], yellow_bottom_line[1]), height*2/3),),), line_color=(204,102,0))
+        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(border_bottom, yellow_bottom_line[0], yellow_bottom_line[1]), border_bottom, calculate_x_from_y(border_middle_bottom, yellow_bottom_line[0], yellow_bottom_line[1]), border_middle_bottom),),), line_color=(204,102,0))
     if yellow_mid_line is not None:
-        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height*5/6, yellow_mid_line[0], yellow_mid_line[1]), height*5/6, calculate_x_from_y(height*0.5, yellow_mid_line[0], yellow_mid_line[1]), height*0.5),),), line_color=(255,153,51))
+        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(border_middle_bottom, yellow_mid_line[0], yellow_mid_line[1]), border_middle_bottom, calculate_x_from_y(border_middle_top, yellow_mid_line[0], yellow_mid_line[1]), border_middle_top),),), line_color=(255,153,51))
     if yellow_top_line is not None:
-        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height*2/3, yellow_top_line[0], yellow_top_line[1]), height*2/3, calculate_x_from_y(height*1/3, yellow_top_line[0], yellow_top_line[1]), height*1/3),),), line_color=(255,204,153))
+        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(border_middle_top, yellow_top_line[0], yellow_top_line[1]), border_middle_top, calculate_x_from_y(border_top, yellow_top_line[0], yellow_top_line[1]), border_top),),), line_color=(255,204,153))
 
     if blue_bottom_line is not None:
-        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height, blue_bottom_line[0], blue_bottom_line[1]), height, calculate_x_from_y(height*2/3, blue_bottom_line[0], blue_bottom_line[1]), height*2/3),),), line_color=(0,153,153))
+        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(border_bottom, blue_bottom_line[0], blue_bottom_line[1]), border_bottom, calculate_x_from_y(border_middle_bottom, blue_bottom_line[0], blue_bottom_line[1]), border_middle_bottom),),), line_color=(0,153,153))
     if blue_mid_line is not None:
-        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height*5/6, blue_mid_line[0], blue_mid_line[1]), height*5/6, calculate_x_from_y(height*0.5, blue_mid_line[0], blue_mid_line[1]), height*0.5),),), line_color=(0,255,255))
+        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(border_middle_bottom, blue_mid_line[0], blue_mid_line[1]), border_middle_bottom, calculate_x_from_y(border_middle_top, blue_mid_line[0], blue_mid_line[1]), border_middle_top),),), line_color=(0,255,255))
     if blue_top_line is not None:
-        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(height*2/3, blue_top_line[0], blue_top_line[1]), height*2/3, calculate_x_from_y(height*1/3, blue_top_line[0], blue_top_line[1]), height*1/3),),), line_color=(153,255,255))
+        lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(border_middle_top, blue_top_line[0], blue_top_line[1]), border_middle_top, calculate_x_from_y(border_top, blue_top_line[0], blue_top_line[1]), border_top),),), line_color=(153,255,255))
 
-    line_points = ((yellow_bottom_point, height*5/6), (yellow_mid_point, height*2/3), (yellow_top_point, height*0.5), (blue_bottom_point, height*5/6), (blue_mid_point, height*2/3), (blue_top_point, height*0.5))
+    line_points = ((yellow_bottom_point, bottom_goal), (yellow_mid_point, middle_goal), (yellow_top_point, top_goal), (blue_bottom_point, bottom_goal), (blue_mid_point, middle_goal), (blue_top_point, top_goal))
     line_points = [point for point in line_points if point[0] is not None]
     lane_lines_image = display_points(lane_lines_image, line_points)
 
-    mid_points = ((average_bottom_point, height*5/6), (average_mid_point, height*2/3), (average_top_point, height*0.5))
+    mid_points = ((average_bottom_point, bottom_goal), (average_mid_point, middle_goal), (average_top_point, top_goal))
     mid_points = [point for point in mid_points if point[0] is not None]
     lane_lines_image = display_points(lane_lines_image, mid_points, point_color=(127,0,255))
     show_image("lane lines", lane_lines_image)
@@ -378,21 +404,23 @@ def split_lines(lines, height):
             x2 = temp
 
         #Bottom
-        if ((height * 2/3 < y2) or #Both ends inside bottom zone (only need to check top)
-          (height * 5/6 < y1)): #Lower end far inside bottom zone
+        if ((border_middle_bottom < y2 and border_bottom > y1) or #Both ends inside bottom zone
+          (bottom_goal < y1 < border_bottom + section_overlap) or #Lower end far inside bottom zone
+          (border_middle_bottom < y1 < border_bottom and border_middle_bottom - section_overlap < y2)): #end in bottom zone, top not far off
             bottom.append(line)
 
         #Middle
-        if ((height * 1/2 < y2 and height * 5/6 < y1) or #Both ends in middle zone
-          (height * 2/3 < y1 < height * 5/6) or #Bottom end far in middle zone
-          (height * 0.5 < y2 < height * 2/3) or #Top end far in middle zone
-          (height * 0.5 < y1 < height * 5/6 and height * (1/2 - 1/24) < y2) or #Bottom end in middle zone, and top is very close to middle zone
-          (height * 0.5 < y2 < height * 5/6 and y1 < height * (5/6 + 1/24))): #Top end in middle zone, and bottom is very close to middle zone
+        if ((border_middle_top < y2 and border_middle_bottom < y1) or #Both ends in middle zone
+          (middle_goal < y1 < border_middle_bottom) or #Bottom end far in middle zone
+          (border_middle_top < y2 < middle_goal) or #Top end far in middle zone
+          (border_middle_top < y1 < border_middle_bottom and border_middle_top - section_overlap < y2) or #Bottom end in middle zone, and top is very close to middle zone
+          (border_middle_top < y2 < border_middle_bottom * 5/6 and y1 < border_middle_top + section_overlap)): #Top end in middle zone, and bottom is very close to middle zone
             middle.append(line)
 
         #Top
-        if ((y1 < height * 2/3) or #Both ends inside top zone (only need to check bottom)
-          (y2 < height * 1/2)): #Top end far inside top zone
+        if ((border_top < y1 < border_middle_top) or #Both ends inside top zone
+          (border_top < y2 < top_goal) or #Top end far inside top zone
+          (border_top < y2 < border_middle_top and border_middle_top + section_overlap < y1)): #Top inside zone, bottom near zone
             top.append(line)
 
     return bottom, middle, top
