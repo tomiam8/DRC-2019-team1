@@ -294,18 +294,19 @@ class HandCodedLaneFollower(object):
 def calculate_angle(midpoints):
     # midpoints is a list of midpoints :)
     # returns the value that should be sent to arduino
+    midpoint_list = [x for x in midpoints if x[0] != None]
 
     # if no midpoints found don't turn?? reconsider this later
-    if len(midpoints) == 0:
+    if len(midpoint_list) == 0:
         return 90
 
     kp = 90 / 70
     kd = 0
 
     # one midpoint == only proportional
-    if len(midpoints) == 1:
+    if len(midpoint_list) == 1:
         try:
-            x, y = midpoints[0]
+            x, y = midpoint_list[0]
             # theta = x from centre to midpoint / y from centre to midpoint
             theta = (x - width/2) / (height - y)
             theta += 90
@@ -318,8 +319,8 @@ def calculate_angle(midpoints):
     # more than one midpoint == proportional and differential
     if len(midpoint_list) == 2:
         try:
-            x1, y1 = midpoints[0]
-            x2, y2 = midpoints[1]
+            x1, y1 = midpoint_list[0]
+            x2, y2 = midpoint_list[1]
 
             theta1 = (x1 - width/2) / (height - y1)
             theta1 += 90
@@ -334,9 +335,9 @@ def calculate_angle(midpoints):
 
     if len(midpoint_list) == 3:
         try:
-            x1, y1 = midpoints[0]
-            x2, y2 = midpoints[1]
-            x3, y3 = midpoints[2]
+            x1, y1 = midpoint_list[0]
+            x2, y2 = midpoint_list[1]
+            x3, y3 = midpoint_list[2]
 
             theta1 = (x1 - width/2) / (height - y1)
             theta1 += 90
@@ -359,7 +360,7 @@ def calculate_angle(midpoints):
 
 def calculate_speed(midpoints, steer):
 
-    midpoint_list = [x for x in midpoints if x != None]
+    midpoint_list = [x for x in midpoints if x[0] != None]
     # if no midpoints found don't move?? reconsider this later
     if len(midpoint_list) == 0:
         return 90
@@ -380,8 +381,8 @@ def calculate_speed(midpoints, steer):
 
     if len(midpoint_list) == 2:
         try:
-            x1, y1 = midpoints[0]
-            x2, y2 = midpoints[1]
+            x1, y1 = midpoint_list[0]
+            x2, y2 = midpoint_list[1]
 
             change_in_y = y1 - y2
 
@@ -393,9 +394,9 @@ def calculate_speed(midpoints, steer):
 
     if len(midpoint_list) == 3:
         try:
-            x1, y1 = midpoints[0]
-            x2, y2 = midpoints[1]
-            x3, y3 = midpoints[2]
+            x1, y1 = midpoint_list[0]
+            x2, y2 = midpoint_list[1]
+            x3, y3 = midpoint_list[2]
 
             change_in_y_1 = y1 - y2
             change_in_y_2 = y3 - y2
