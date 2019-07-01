@@ -193,7 +193,7 @@ class HandCodedLaneFollower(object):
         logging.info('Creating a HandCodedLaneFollower...')
         self.car = car
         self.curr_steering_angle = 90
-        self.arduino = FakeArduino()
+        self.arduino = Arduino()
         self.arduino_thread = threading.Thread(target=self.arduino.run)
         self.arduino_thread.start()
 
@@ -300,19 +300,19 @@ def calculate_angle(midpoints):
     if len(midpoint_list) == 0:
         return 90
 
-    kp = 90 / 70
+    kp = 1
     kd = 0
 
     # one midpoint == only proportional
     if len(midpoint_list) == 1:
         try:
             x, y = midpoint_list[0]
-            # theta = x from centre to midpoint / y from centre to midpoint
+            # theta = x from centre to midpoint / y from midpoint to bottom
             theta = (x - width/2) / (height - y)
-            theta += 90
+            theta = math.degrees(theta) + 90
 
             # -20 acts as a stabiliser
-            return kp * (theta - 20)
+            return kp * (theta)
         except:
             return None
 
@@ -323,13 +323,15 @@ def calculate_angle(midpoints):
             x2, y2 = midpoint_list[1]
 
             theta1 = (x1 - width/2) / (height - y1)
-            theta1 += 90
+            theta1 = math.degrees(theta1) + 90
             theta2 = (x2 - width/2) / (height - y2)
-            theta2 += 90
+            theta2 = math.degrees(theta2) + 90
+            theta_average = theta1 + theta2
+            theta_average /= 2
 
             change_in_theta = (theta2 - theta1) / (y1 - y2)
 
-            return kp * (theta1 - 20) + kd * (change_in_theta - 20 / height)
+            return kp * (theta_average) + kd * (change_in_theta / height)
         except:
             return None
 
@@ -340,18 +342,21 @@ def calculate_angle(midpoints):
             x3, y3 = midpoint_list[2]
 
             theta1 = (x1 - width/2) / (height - y1)
-            theta1 += 90
+            theta1 = math.degrees(theta1) + 90
             theta2 = (x2 - width/2) / (height - y2)
-            theta2 += 90
+            theta2 = math.degrees(theta2) + 90
             theta3 = (x3 - width/2) / (height - y3)
-            theta3 += 90
+            theta3 = math.degrees(theta3) + 90
+
+            theta_average = theta1 + theta2 + theta3
+            theta_average /= 3
 
             change_in_theta1 = (theta2 - theta1) / (y1 - y2)
             change_in_theta2 = (theta3 - theta2) / (y2 - y3)
             change_in_theta_average = (change_in_theta1 + change_in_theta2) / 2
 
             # return kp * (theta1 - 20) + kd * (change_in_theta1 - 20 / height) + kd * (change_in_theta2 - 20 / height)
-            return kp * (theta1 - 20) + kd * (change_in_theta_average - 20 / height)
+            return kp * (theta_average) + kd * (change_in_theta_average / height)
         except:
             return None
 
@@ -438,8 +443,8 @@ def detect_lane(frame):
     yellow_cropped = region_of_interest(yellow_edges, crop_polygon)
     blue_cropped = region_of_interest(blue_edges, crop_polygon)
 
-    show_image('yellow edges', yellow_cropped)
-    show_image('blue edges', blue_cropped)
+    #show_image('yellow edges', yellow_cropped)
+    #show_image('blue edges', blue_cropped)
 
     yellow_line_segments = detect_line_segments(yellow_cropped)
     blue_line_segments = detect_line_segments(blue_cropped)
@@ -454,9 +459,9 @@ def detect_lane(frame):
     #    blue_line_segments = [blue_line_segments[0]] #TODO REMOVE
 
     line_segment_image_yellow = display_lines(frame, yellow_line_segments)
-    show_image("yellow line segments", line_segment_image_yellow)
+    #show_image("yellow line segments", line_segment_image_yellow)
     line_segment_image_blue = display_lines(frame, blue_line_segments)
-    show_image("blue line segments", line_segment_image_blue)
+    #show_image("blue line segments", line_segment_image_blue)
 
     #Split lines into three segments:
     yellow_bottom, yellow_mid, yellow_top = split_lines(yellow_line_segments, height)
@@ -465,18 +470,18 @@ def detect_lane(frame):
     frame = display_lines(frame, (((0, border_top, width, border_top),), ((0, top_goal, width, top_goal),), ((0, border_middle_top, width, border_middle_top),), ((0, middle_goal, width, middle_goal),), ((0, border_middle_bottom, width, border_middle_bottom),), ((0, bottom_goal, width, bottom_goal),), ((0, border_bottom, width, border_bottom),)), line_color=(255,255,255), line_width=1)
 
     blue_top_image = display_lines(frame, blue_top)
-    show_image("blue line top segments", blue_top_image)
+    #show_image("blue line top segments", blue_top_image)
     blue_mid_image = display_lines(frame, blue_mid)
-    show_image("blue mid segments", blue_mid_image)
+    #show_image("blue mid segments", blue_mid_image)
     blue_bottom_image = display_lines(frame, blue_bottom)
-    show_image("blue bottom segments", blue_bottom_image)
+    #show_image("blue bottom segments", blue_bottom_image)
 
     yellow_top_image = display_lines(frame, yellow_top)
-    show_image("yellow line top segments", yellow_top_image)
+    #show_image("yellow line top segments", yellow_top_image)
     yellow_mid_image = display_lines(frame, yellow_mid)
-    show_image("yellow mid segments", yellow_mid_image)
+    #show_image("yellow mid segments", yellow_mid_image)
     yellow_bottom_image = display_lines(frame, yellow_bottom)
-    show_image("yellow bottom segments", yellow_bottom_image)
+    #show_image("yellow bottom segments", yellow_bottom_image)
 
     yellow_bottom_line = section_average_slope_intercept(yellow_bottom, bottom_goal) #returns (gradient, intercept)
     yellow_mid_line = section_average_slope_intercept(yellow_mid, middle_goal)
@@ -580,7 +585,7 @@ def detect_lane(frame):
     line_points = [point for point in line_points if point[0] is not None]
     lane_lines_image = display_points(lane_lines_image, line_points)
 
-    show_image("lane lines", lane_lines_image)
+    #show_image("lane lines", lane_lines_image)
 
     return (yellow_bottom_point, yellow_mid_point, yellow_top_point), (blue_bottom_point, blue_mid_point, blue_top_point), lane_lines_image, change_in_x_lines
 
