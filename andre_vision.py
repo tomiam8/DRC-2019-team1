@@ -53,6 +53,32 @@ border_middle_bottom = top_mask + section_half_height*4
 bottom_goal = top_mask + section_half_height*5
 border_bottom = top_mask + section_half_height*6
 
+#Globals rather than costants but shhh
+kp = 1
+kd = 0
+
+def stopper(arduino):
+    shouldStop = False
+    while True:
+        leInput = input("Press enter to {}:".format("stop" if shouldStop else "start"))
+        shouldStop = not shouldStop
+        try:
+            if leInput[0] == 'p':
+                kp = float(leInput[1:])
+                print("kp: {}".format(kp))
+                shouldStop = not shouldStop #Flip it back
+            elif leInput[0] == 'd':
+                kd = float(leInput[1:])
+                print("kd: {}".format(kd))
+                shouldStop = not shouldStop
+        except KeyboardInterrupt:
+            arduino.mode("STOP")
+            time.sleep(0.5)
+            sys.exit()
+        except Exception:
+            pass
+        arduino.mode("STOP" if shouldStop else "START")
+
 class FakeArduino:
     def __init__(self):
         self.speed = 80
@@ -99,6 +125,13 @@ class Arduino:
         self.send_speed = True
         self.angle = 90
         self.send_angle = True
+        self.should_run = True
+
+    def mode(self, value):
+        if value=="STOP":
+            self.should_run = False
+        elif value=="START":
+            self.should_run = True
 
     def update_speed(self, speed):
         if speed > 180:
@@ -126,9 +159,12 @@ class Arduino:
         while True:
             self.connection.write(b"D000")
             time.sleep(0.04)
-            if self.send_speed:
+            if self.should_run and self.send_speed:
                 self.connection.write(f"M{self.speed:03d}".encode())
                 self.send_speed = False
+                time.sleep(0.04)
+            elif not self.should_run:
+                self.connection.write("M90".encode())
                 time.sleep(0.04)
             self.connection.write(f"S{self.angle:03d}".encode())
             time.sleep(0.04)
@@ -299,9 +335,6 @@ def calculate_angle(midpoints):
     # if no midpoints found don't turn?? reconsider this later
     if len(midpoint_list) == 0:
         return 90
-
-    kp = 1
-    kd = 0
 
     # one midpoint == only proportional
     if len(midpoint_list) == 1:
@@ -945,6 +978,7 @@ class File_Inputter:
 #frame_input = File_Inputter()
 #_thread.start_new_thread(frame_input.next_frame_counter, tuple())
 lane_follower = HandCodedLaneFollower()
+_thread.start_new_thread(stopper, tuple(lane_follower.arduino))
 print("Running...")
 
 def main():
