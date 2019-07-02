@@ -54,15 +54,13 @@ bottom_goal = top_mask + section_half_height*5
 border_bottom = top_mask + section_half_height*6
 
 #Globals rather than costants but shhh
-kp = 1
-kd = 0
 
 def stopper(arduino):
     shouldStop = False
     while True:
         leInput = input("Press enter to {}:".format("stop" if shouldStop else "start"))
         shouldStop = not shouldStop
-        try:
+        """try:
             if leInput[0] == 'p':
                 kp = float(leInput[1:])
                 print("kp: {}".format(kp))
@@ -76,12 +74,12 @@ def stopper(arduino):
             time.sleep(0.5)
             sys.exit()
         except Exception:
-            pass
+            pass"""
         arduino.mode("STOP" if shouldStop else "START")
 
 class FakeArduino:
     def __init__(self):
-        self.speed = 80
+        self.speed = 90
         self.send_speed = True
         self.angle = 90
         self.send_angle = True
@@ -121,7 +119,7 @@ class FakeArduino:
 class Arduino:
     def __init__(self):
         self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
-        self.speed = 80
+        self.speed = 90
         self.send_speed = True
         self.angle = 90
         self.send_angle = True
@@ -157,19 +155,18 @@ class Arduino:
 
     def run(self):
         while True:
-            self.connection.write(b"D000")
-            time.sleep(0.04)
+            #self.connection.write("D000".encode())
+            #time.sleep(0.01)
             if self.should_run and self.send_speed:
                 self.connection.write(f"M{self.speed:03d}".encode())
                 self.send_speed = False
-                time.sleep(0.04)
+                #time.sleep(0.005)
             elif not self.should_run:
-                self.connection.write("M90".encode())
-                time.sleep(0.04)
+                self.connection.write("M090".encode())
+                #time.sleep(0.005)
             self.connection.write(f"S{self.angle:03d}".encode())
-            time.sleep(0.04)
 
-class Stopper:
+"""class Stopper:
     def __init__(self, arduino):
         self.arduino = arduino
 
@@ -179,6 +176,7 @@ class Stopper:
             time.sleep(4)
             input("Press enter to start again:")
             self.arduino.update_speed(80)
+"""
 
 class Camera:
     def __init__(self):
@@ -238,6 +236,7 @@ class HandCodedLaneFollower(object):
         #self.stopper_thread.start()
 
     def follow_lane(self, frame):
+
         # Main entry point of the lane follower
         #show_image("orig", frame)
         frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_NEAREST)
@@ -258,7 +257,7 @@ class HandCodedLaneFollower(object):
         if found_midpoints == 0: #Just go off estimates
             for counter in range(3):
                 if yellow_points[counter] is not None:
-                    mid_points[counter] = yellow_points[counter] -3 * width/4 #- yellow_goal_points[counter]
+                    mid_points[counter] = yellow_points[counter] - 3 * width/4 #- yellow_goal_points[counter]
                 elif blue_points[counter] is not None:
                     mid_points[counter] = 3*width/4 + blue_points[counter] #- blue_goal_points[counter]
 
@@ -314,38 +313,48 @@ class HandCodedLaneFollower(object):
         #Do steering stuff
         #final_frame = self.steer(frame, lane_lines)
         points = [x for x in ((mid_points[0], bottom_goal), (mid_points[1], middle_goal), (mid_points[2], top_goal))]
-        angle = calculate_angle(points)
-        speed = 0
-        print(angle)
+        try:
+            angle = calculate_angle(points, angle)
+        except NameError:
+            angle = calculate_angle(points)
 
         if angle:
             speed = calculate_speed(points, angle)
             self.arduino.update_angle(angle)
+            if speed:
+                self.arduino.update_speed(speed)
+        else:
+            self.arduino.update_speed(75)
 
-        if speed:
-            self.arduino.update_speed(speed)
 
-
-
-def calculate_angle(midpoints):
+def calculate_angle(midpoints, old_steer=90):
     # midpoints is a list of midpoints :)
     # returns the value that should be sent to arduino
+    kp = 4 #KPP
+    kd = -0
+    #ko = 0.4
+    old_steer = old_steer - 90 if old_steer > 90 else 90 - old_steer
+
     midpoint_list = [x for x in midpoints if x[0] != None]
 
     # if no midpoints found don't turn?? reconsider this later
     if len(midpoint_list) == 0:
-        return 90
+        return 180
 
     # one midpoint == only proportional
     if len(midpoint_list) == 1:
         try:
             x, y = midpoint_list[0]
             # theta = x from centre to midpoint / y from midpoint to bottom
-            theta = (x - width/2) / (height - y)
-            theta = math.degrees(theta) + 90
+            # theta = (x - width/2) / (height - y)
+            # theta = math.degrees(math.atan(theta))
+
+            l = x - width/2
+            delta_l = x - width/2
+            delta_h = height - y
 
             # -20 acts as a stabiliser
-            return kp * (theta)
+            return 90 + kp * (l) + kd * (delta_l / delta_h) #- ko * old_steer
         except:
             return None
 
@@ -355,16 +364,18 @@ def calculate_angle(midpoints):
             x1, y1 = midpoint_list[0]
             x2, y2 = midpoint_list[1]
 
-            theta1 = (x1 - width/2) / (height - y1)
-            theta1 = math.degrees(theta1) + 90
-            theta2 = (x2 - width/2) / (height - y2)
-            theta2 = math.degrees(theta2) + 90
-            theta_average = theta1 + theta2
-            theta_average /= 2
+            #theta1 = (x1 - width/2) / (height - y1)
+            #theta1 = math.degrees(math.atan(theta1))
+            #theta2 = (x2 - width/2) / (height - y2)
+            #theta2 = math.degrees(math.atan(theta2))
+            #theta_average = theta1 + theta2
+            #theta_average /= 2
 
-            change_in_theta = (theta2 - theta1) / (y1 - y2)
+            l = x1 - width/2
+            delta_l = x2 - x1
+            delta_h = y1 - y2
 
-            return kp * (theta_average) + kd * (change_in_theta / height)
+            return 90 + kp * (l) + kd * (delta_l / delta_h) #- ko * old_steer
         except:
             return None
 
@@ -374,22 +385,23 @@ def calculate_angle(midpoints):
             x2, y2 = midpoint_list[1]
             x3, y3 = midpoint_list[2]
 
-            theta1 = (x1 - width/2) / (height - y1)
-            theta1 = math.degrees(theta1) + 90
-            theta2 = (x2 - width/2) / (height - y2)
-            theta2 = math.degrees(theta2) + 90
-            theta3 = (x3 - width/2) / (height - y3)
-            theta3 = math.degrees(theta3) + 90
+            # theta1 = (x1 - width/2) / (height - y1)
+            # theta1 = math.degrees(math.atan(theta1))
+            # theta2 = (x2 - width/2) / (height - y2)
+            # theta2 = math.degrees(math.atan(theta2))
+            # theta3 = (x3 - width/2) / (height - y3)
+            # theta3 = math.degrees(math.atan(theta3))
 
-            theta_average = theta1 + theta2 + theta3
-            theta_average /= 3
+            # theta_average = theta1 + theta2 + theta3
+            # theta_average /= 3
 
-            change_in_theta1 = (theta2 - theta1) / (y1 - y2)
-            change_in_theta2 = (theta3 - theta2) / (y2 - y3)
-            change_in_theta_average = (change_in_theta1 + change_in_theta2) / 2
+            l = x1 - width/2
+            delta1 = (x2 - x1) / (y1 - y2)
+            delta2 = (x3 - x2) / (y2 - y3)
+            delta_average = (delta1 + delta2) / 2
 
             # return kp * (theta1 - 20) + kd * (change_in_theta1 - 20 / height) + kd * (change_in_theta2 - 20 / height)
-            return kp * (theta_average) + kd * (change_in_theta_average / height)
+            return 90 + kp * (l) + kd * (delta_average) #- ko * old_steer
         except:
             return None
 
@@ -397,16 +409,20 @@ def calculate_angle(midpoints):
     return 90
 
 def calculate_speed(midpoints, steer):
-
     midpoint_list = [x for x in midpoints if x[0] != None]
     # if no midpoints found don't move?? reconsider this later
     if len(midpoint_list) == 0:
-        return 90
+        return 75
 
-    kp = -0.333
-    min_speed = 80
-    max_speed_proportional = 50
-    max_speed_integration = 40
+    steer *= 0.05
+    steer = 180 if steer > 180 else steer
+    steer = 0 if steer < 0 else steer
+    steer = steer - 90 if steer > 90 else 90 - steer
+    steer = 90 - steer
+    min_speed = 84
+    max_speed_proportional = 75
+    kp = (min_speed - max_speed_proportional) / 90
+    max_speed_integration = 70
     ki = 0
 
     proportional_speed = min_speed + kp * steer
@@ -679,7 +695,7 @@ def region_of_interest(canny,polygon):
     mask = np.zeros_like(canny)
 
     cv2.fillPoly(mask, polygon, 255)
-    show_image("mask", mask)
+    #show_image("mask", mask)
     masked_image = cv2.bitwise_and(canny, mask)
     return masked_image
 
@@ -978,11 +994,12 @@ class File_Inputter:
 #frame_input = File_Inputter()
 #_thread.start_new_thread(frame_input.next_frame_counter, tuple())
 lane_follower = HandCodedLaneFollower()
-_thread.start_new_thread(stopper, tuple(lane_follower.arduino))
+_thread.start_new_thread(stopper, (lane_follower.arduino,))
 print("Running...")
 
 def main():
     time.sleep(3)
+    #counter_serial = 0
 
     LIVE = True
     file = "xyz.bag"
@@ -994,6 +1011,8 @@ def main():
             '''if frame_input.frame_counter < frame_input.frame_goal:
                 _, frame = cap.read()
                 frame_input.frame_counter += 1'''
+            #counter_serial += 1
+            #print(counter_serial)
 
             frame, depth_frame, frameset = getframes(pipe)
             combo_image = lane_follower.follow_lane(frame)
