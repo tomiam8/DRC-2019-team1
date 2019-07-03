@@ -128,11 +128,11 @@ class Arduino:
         self.send_speed = True
 
     def update_angle(self, angle):
-        if angle > 180:
-            angle = 180
-        elif angle < 0:
-            angle = 0
-        angle = 180 - angle
+        if angle > 160:
+            angle = 160
+        elif angle < 20:
+            angle = 20
+        angle = 160 - angle
         self.angle = int(angle)
 
     def get_speed(self):
@@ -215,7 +215,7 @@ class HandCodedLaneFollower(object):
         logging.info('Creating a HandCodedLaneFollower...')
         self.car = car
         self.curr_steering_angle = 90
-        self.arduino = FakeArduino()
+        self.arduino = Arduino()
         self.arduino_thread = threading.Thread(target=self.arduino.run)
         self.arduino_thread.start()
 
@@ -228,7 +228,8 @@ class HandCodedLaneFollower(object):
         # Main entry point of the lane follower
         #show_image("orig", frame)
         frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_NEAREST)
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) #TODO remove
+        #THIS NEEDS TO BE CHANGED FOR RECORDINGS
+        #frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) #TODO remove
         crop_polygon = np.array([[
             (0, top_mask),
             (width, top_mask),
@@ -344,8 +345,8 @@ class HandCodedLaneFollower(object):
 def calculate_angle(midpoints, old_steer=90):
     # midpoints is a list of midpoints :)
     # returns the value that should be sent to arduino
-    kp = 4 #KPP
-    kd = -0
+    kp = 10 #KPP
+    kd = -1
     #ko = 0.4
     old_steer = old_steer - 90 if old_steer > 90 else 90 - old_steer
 
@@ -353,7 +354,7 @@ def calculate_angle(midpoints, old_steer=90):
 
     # if no midpoints found don't turn?? reconsider this later
     if len(midpoint_list) == 0:
-        return 180
+        return 90
 
     # one midpoint == only proportional
     if len(midpoint_list) == 1:
@@ -385,7 +386,7 @@ def calculate_angle(midpoints, old_steer=90):
             #theta_average = theta1 + theta2
             #theta_average /= 2
 
-            l = x1 - width/2
+            l = x2 - width/2
             delta_l = x2 - x1
             delta_h = y1 - y2
 
@@ -409,7 +410,7 @@ def calculate_angle(midpoints, old_steer=90):
             # theta_average = theta1 + theta2 + theta3
             # theta_average /= 3
 
-            l = x1 - width/2
+            l = x3 - width/2
             delta1 = (x2 - x1) / (y1 - y2)
             delta2 = (x3 - x2) / (y2 - y3)
             delta_average = (delta1 + delta2) / 2
@@ -429,7 +430,7 @@ def calculate_speed(midpoints, steer):
         return 75
 
     steer *= 0.05
-    steer = 180 if steer > 180 else steer
+    steer = 160 if steer > 160 else steer
     steer = 0 if steer < 0 else steer
     steer = steer - 90 if steer > 90 else 90 - steer
     steer = 90 - steer
@@ -940,7 +941,7 @@ def avoid_obstacle(frame, obs_x, obs_y, yellow_points, blue_points):
 
     width = frame.shape[1]
     print(width)
-    display = 0
+    display = 1
 
     if display == 1:
         print("yellow", yellow_points)
@@ -1134,7 +1135,7 @@ class File_Inputter:
 frame_input = File_Inputter()
 _thread.start_new_thread(frame_input.next_frame_counter, tuple())
 lane_follower = HandCodedLaneFollower()
-#_thread.start_new_thread(stopper, (lane_follower.arduino,)) #TODO turn stopper back on
+_thread.start_new_thread(stopper, (lane_follower.arduino,)) #TODO turn stopper back on
 print("Running...")
 
 def main():
@@ -1142,8 +1143,8 @@ def main():
     #counter_serial = 0
 
     #REMEMBER TO REMOVE RGB2BGR COLOUR FLIP (FOR BAG FILE)
-    LIVE = False
-    file = "4th.bag"
+    LIVE = True
+    file = "start.bag"
     pipe, config, profile = setupstream(LIVE, file)
 
     #while cap.isOpened():
