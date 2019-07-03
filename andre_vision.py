@@ -948,12 +948,12 @@ def avoid_obstacle(frame, obs_x, obs_y, yellow_points, blue_points):
         print("obs_x", obs_x)
 
     # Determine where the obstacle is on the screen
-    if obs_x > width/2:
+    if obs_x < width/2:
 
         # set this x coordinate as the new right line
         blue_points = (obs_x,obs_x , obs_x)
 
-    else:
+    elif obs_x > width/2:
 
         # set this x coordinate as the new left lines
         yellow_points = (obs_x,obs_x, obs_x)
