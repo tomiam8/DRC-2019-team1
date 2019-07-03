@@ -1,6 +1,8 @@
 import pyrealsense2 as rs
 import numpy as np
 import cv2, sys, time, _thread
+from cam import setupstream
+from cam import getframes
 
 ################ Setup constants ################
 #Thresholds: Yellow
@@ -11,7 +13,13 @@ thresh_yellow_high = (47,255,255)
 thresh_blue_low = (96,30,147)
 thresh_blue_high = (145, 246, 239)
 
+#Thresholds: Purple (obstacle)
+thresh_purple_low = (0, 0, 0)
+thresh_purple_high = (180, 255, 255)
 
+#Thresholds: Green
+thresh_green_low = (40, 23, 135)
+thresh_green_high = (69, 99, 198)
 
 class Threshold_manager:
     def __init__(self, low, high):
@@ -63,6 +71,8 @@ random_colours = [(255, 0, 0), (255, 255, 0), (0, 255,), (0, 255, 255), (0, 0, 2
 
 threshold_blue = Threshold_manager(thresh_blue_low, thresh_blue_high)
 threshold_yellow = Threshold_manager(thresh_yellow_low, thresh_yellow_high)
+threshold_purple = Threshold_manager(thresh_purple_low, thresh_purple_high)
+threshold_green = Threshold_manager(thresh_green_low, thresh_green_high)
 
 # Setup debug stuff (i.e run headerless if not debug)
 if len(sys.argv) > 1:
@@ -72,9 +82,13 @@ else:
 debug=True
 
 if debug:
+    threshold_purple = Threshold_manager_debug(thresh_purple_low, thresh_purple_high)
+    threshold_green = Threshold_manager_debug(thresh_green_low, thresh_green_high)
     threshold_blue = Threshold_manager_debug(thresh_blue_low, thresh_blue_high)
     threshold_yellow = Threshold_manager_debug(thresh_yellow_low, thresh_yellow_high)
 
+    cv2.namedWindow("Threshold purple")
+    cv2.namedWindow("Threshold green")
     cv2.namedWindow("Threshold blue")
     cv2.namedWindow("Threshold yellow")
 
@@ -97,6 +111,20 @@ if debug:
                        threshold_yellow.on_low_V_thresh_trackbar)
     cv2.createTrackbar("high  val", "Threshold yellow", threshold_yellow.uv, 255,
                        threshold_yellow.on_high_V_thresh_trackbar)
+
+    cv2.createTrackbar("low hue", "Threshold purple", threshold_purple.lh, 180, threshold_purple.on_low_H_thresh_trackbar)
+    cv2.createTrackbar("high  hue", "Threshold purple", threshold_purple.uh, 180, threshold_purple.on_high_H_thresh_trackbar)
+    cv2.createTrackbar("low sat", "Threshold purple", threshold_purple.ls, 255, threshold_purple.on_low_S_thresh_trackbar)
+    cv2.createTrackbar("high  sat", "Threshold purple", threshold_purple.us, 255, threshold_purple.on_high_S_thresh_trackbar)
+    cv2.createTrackbar("low val", "Threshold purple", threshold_purple.lv, 255, threshold_purple.on_low_V_thresh_trackbar)
+    cv2.createTrackbar("high  val", "Threshold purple", threshold_purple.uv, 255, threshold_purple.on_high_V_thresh_trackbar)
+
+    cv2.createTrackbar("low hue", "Threshold green", threshold_green.lh, 180, threshold_green.on_low_H_thresh_trackbar)
+    cv2.createTrackbar("high  hue", "Threshold green", threshold_green.uh, 180, threshold_green.on_high_H_thresh_trackbar)
+    cv2.createTrackbar("low sat", "Threshold green", threshold_green.ls, 255, threshold_green.on_low_S_thresh_trackbar)
+    cv2.createTrackbar("high  sat", "Threshold green", threshold_green.us, 255, threshold_green.on_high_S_thresh_trackbar)
+    cv2.createTrackbar("low val", "Threshold green", threshold_green.lv, 255, threshold_green.on_low_V_thresh_trackbar)
+    cv2.createTrackbar("high  val", "Threshold green", threshold_green.uv, 255, threshold_green.on_high_V_thresh_trackbar)
 
 
 class Camera:
@@ -142,7 +170,7 @@ class Camera:
     def get_timestamp(self):
         return self.timestamp
 
-def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blue_low, thresh_blue_high, debug):
+def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blue_low, thresh_blue_high, thresh_purple_low, thresh_purple_high, thresh_green_low, thresh_green_high, debug):
     # Image processing (resize, hsv, blur, add border, threshold, blur, Canny, contour finding)
     resize_img = cv2.resize(np.asanyarray(color_frame), (320, 180), interpolation=cv2.INTER_NEAREST)
     hsv_img = cv2.cvtColor(resize_img, cv2.COLOR_BGR2HSV)
@@ -150,13 +178,16 @@ def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blu
     bordered_img = cv2.copyMakeBorder(blur_img, 3, 3, 3, 3, cv2.BORDER_CONSTANT, (0, 0, 0))
 
     threshold_yellow_img = cv2.inRange(bordered_img, thresh_yellow_low, thresh_yellow_high)
-
     threshold_blue_img = cv2.inRange(bordered_img, thresh_blue_low, thresh_blue_high)
+    threshold_green_img = cv2.inRange(bordered_img, thresh_green_low, thresh_green_high)
+    threshold_purple_img = cv2.inRange(bordered_img, thresh_purple_low, thresh_purple_high)
 
     # Debug display stuff
     if debug:
         cv2.imshow("Threshold yellow", threshold_yellow_img)
         cv2.imshow("Threshold blue", threshold_blue_img)
+        cv2.imshow("Threshold green", threshold_green_img)
+        cv2.imshow("Threshold purple", threshold_purple_img)
         cv2.imshow("Colour", resize_img)
         cv2.waitKey(1)
 
@@ -182,31 +213,19 @@ class File_Inputter:
                     pass
 
 
-run_from_file = True
-
+frame_input = File_Inputter()
+_thread.start_new_thread(frame_input.next_frame_counter, tuple())
+LIVE = True
+file = "videos/green_line.bag"
+pipe, config, profile = setupstream(LIVE, file)
 try:
-    if not run_from_file: #Do from camera
-        camera = Camera()
-        _thread.start_new_thread(camera.take_pics, tuple())
-        try:
-            while camera.get_color_frame() is None:
-                time.sleep(0.1)  # Wait for camera to start
-            while True:
-                process_image(camera.get_color_frame(), threshold_yellow.get_low(), threshold_yellow.get_high(),
-                            threshold_blue.get_low(), threshold_blue.get_high(), debug)
-        except Exception as e:
-            camera.stop()
-            raise e
-    else:
-        cap = cv2.VideoCapture("test5.mp4")
-        frame_input = File_Inputter()
-        _thread.start_new_thread(frame_input.next_frame_counter, tuple())
-        while cap.isOpened():
-            if frame_input.frame_counter < frame_input.frame_goal:
-                _, frame = cap.read()
-                frame_input.frame_counter += 1
-            process_image(frame, threshold_yellow.get_low(), threshold_yellow.get_high(), threshold_blue.get_low(), threshold_blue.get_high(), debug)
-except:
-    pass
+    while True:
+        if frame_input.frame_counter < frame_input.frame_goal:
+            frame, depth_frame, frameset = getframes(pipe)
+            frame_input.frame_counter += 1
+        process_image(frame, threshold_yellow.get_low(), threshold_yellow.get_high(),
+                            threshold_blue.get_low(), threshold_blue.get_high(), threshold_purple.get_low(), threshold_purple.get_high(), threshold_green.get_low(), threshold_green.get_high(), debug)    
+except Exception as e:
+    print(e)
 finally:
     print("\nYellow low: {}\nYellow high: {}\nBlue low: {}\nBlue high:{}".format(threshold_yellow.get_low(), threshold_yellow.get_high(), threshold_blue.get_low(), threshold_blue.get_high()))
