@@ -31,6 +31,10 @@ thresh_blue_high = (145, 246, 239)
 thresh_purple_low = (108, 51, 0)
 thresh_purple_high = (180, 153, 102)
 
+#Thresholds: Green
+thresh_green_low = (40, 39, 135)
+thresh_green_high = (72, 99, 198)
+
 #Image size
 width = 320
 height = 180
@@ -48,27 +52,14 @@ bottom_goal = top_mask + section_half_height*5
 border_bottom = top_mask + section_half_height*6
 
 #Globals rather than costants but shhh
+should_stop = False
+green_line_detection_history = [False for x in range(10)]
 
 def stopper(arduino):
-    shouldStop = False
+    global should_stop #Sorry.... :(
     while True:
-        leInput = input("Press enter to {}:".format("stop" if shouldStop else "start"))
+        leInput = input("Press enter to {}:".format("stop" if should_stop else "start"))
         shouldStop = not shouldStop
-        """try:
-            if leInput[0] == 'p':
-                kp = float(leInput[1:])
-                print("kp: {}".format(kp))
-                shouldStop = not shouldStop #Flip it back
-            elif leInput[0] == 'd':
-                kd = float(leInput[1:])
-                print("kd: {}".format(kd))
-                shouldStop = not shouldStop
-        except KeyboardInterrupt:
-            arduino.mode("STOP")
-            time.sleep(0.5)
-            sys.exit()
-        except Exception:
-            pass"""
         arduino.mode("STOP" if shouldStop else "START")
 
 class FakeArduino:
@@ -99,6 +90,9 @@ class FakeArduino:
 
     def get_angle(self):
         return self.angle
+
+    def mode(self, okay_i_guess_ill_take_your_arguments):
+        pass
 
     def run(self):
         while True:
@@ -234,8 +228,24 @@ class HandCodedLaneFollower(object):
         # Main entry point of the lane follower
         #show_image("orig", frame)
         frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_NEAREST)
+        crop_polygon = np.array([[
+            (0, top_mask),
+            (width, top_mask),
+            (width, height),
+            (0, height)
+        ]], np.int32)
+
+        color_image = np.copy(frame)
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        yellow_points, blue_points, lane_lines_image, change_in_x_lines, average_gradient = detect_lane(frame, color_image) #points = (bottom, middle, top) x values
+
+        green_line = detect_green(frame, average_gradient)
+        green_line_detection_history.pop(0)
+        green_line_detection_history.append(green_line)
+        if sum([1 for x in green_line_detection_history if x is True])/len(green_line_detection_history) > 0.2:
+            should_stop = True
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        yellow_points, blue_points, lane_lines_image, change_in_x_lines = detect_lane(frame) #points = (bottom, middle, top) x values
+        yellow_points, blue_points, lane_lines_image, change_in_x_lines = detect_lane(frame, color_image) #points = (bottom, middle, top) x values
         mid_points = [None, None, None]
         change_in_x_yellow_lines = change_in_x_lines[:3]
         change_in_x_blue_lines = change_in_x_lines[3:]
@@ -342,7 +352,7 @@ def calculate_angle(midpoints, old_steer=90):
 
     # if no midpoints found don't turn?? reconsider this later
     if len(midpoint_list) == 0:
-        return 90
+        return 180
 
     # one midpoint == only proportional
     if len(midpoint_list) == 1:
@@ -475,7 +485,7 @@ def calculate_speed(midpoints, steer):
 ############################
 # Frame processing steps
 ############################
-def detect_lane(frame):
+def detect_lane(frame, color_image):
     logging.debug('detecting lane lines...')
 
     yellow_edges = detect_edges(frame,thresh_yellow_low,thresh_yellow_high)
@@ -519,7 +529,7 @@ def detect_lane(frame):
     yellow_bottom, yellow_mid, yellow_top = split_lines(yellow_line_segments, height)
     blue_bottom, blue_mid, blue_top = split_lines(blue_line_segments, height)
 
-    frame = display_lines(frame, (((0, border_top, width, border_top),), ((0, top_goal, width, top_goal),), ((0, border_middle_top, width, border_middle_top),), ((0, middle_goal, width, middle_goal),), ((0, border_middle_bottom, width, border_middle_bottom),), ((0, bottom_goal, width, bottom_goal),), ((0, border_bottom, width, border_bottom),)), line_color=(255,255,255), line_width=1)
+    frame = display_lines(color_image, (((0, border_top, width, border_top),), ((0, top_goal, width, top_goal),), ((0, border_middle_top, width, border_middle_top),), ((0, middle_goal, width, middle_goal),), ((0, border_middle_bottom, width, border_middle_bottom),), ((0, bottom_goal, width, bottom_goal),), ((0, border_bottom, width, border_bottom),)), line_color=(255,255,255), line_width=1)
 
     blue_top_image = display_lines(frame, blue_top)
     #show_image("blue line top segments", blue_top_image)
@@ -544,6 +554,7 @@ def detect_lane(frame):
     blue_top_line = section_average_slope_intercept(blue_top, top_goal)
 
     change_in_x_lines = []
+    gradients = []
 
     """yellow_bottom_line = average_slope_intercept(frame, yellow_bottom) #returns (gradient, intercept)
     yellow_mid_line = average_slope_intercept(frame, yellow_mid)
@@ -559,6 +570,7 @@ def detect_lane(frame):
         yellow_bottom_point = (1/yellow_bottom_line[0])*(bottom_goal - yellow_bottom_line[1])
         change_in_x = yellow_bottom_point - (1/yellow_bottom_line[0])*(border_bottom - yellow_bottom_line[1])
         change_in_x_lines.append(2 * change_in_x)
+        gradients.append(yellow_bottom_line[0])
     else:
         yellow_bottom_point = None
         change_in_x_lines.append(None)
@@ -567,7 +579,7 @@ def detect_lane(frame):
         yellow_mid_point = (1/yellow_mid_line[0])*(middle_goal - yellow_mid_line[1])
         change_in_x = yellow_mid_point - (1/yellow_mid_line[0])*(border_middle_bottom - yellow_mid_line[1])
         change_in_x_lines.append(2 * change_in_x)
-
+        gradients.append(yellow_mid_line[0])
     else:
         yellow_mid_point = None
         change_in_x_lines.append(None)
@@ -576,6 +588,7 @@ def detect_lane(frame):
         yellow_top_point = (1/yellow_top_line[0])*(top_goal - yellow_top_line[1])
         change_in_x = yellow_top_point - (1/yellow_top_line[0])*(border_middle_top - yellow_top_line[1])
         change_in_x_lines.append(2 * change_in_x)
+        gradients.append(yellow_top_line[0])
     else:
         yellow_top_point = None
         change_in_x_lines.append(None)
@@ -585,6 +598,7 @@ def detect_lane(frame):
         blue_bottom_point = (1/blue_bottom_line[0])*(bottom_goal - blue_bottom_line[1])
         change_in_x = blue_bottom_point - (1/blue_bottom_line[0])*(border_bottom - blue_bottom_line[1])
         change_in_x_lines.append(2 * change_in_x)
+        gradients.append(blue_bottom_line[0])
     else:
         blue_bottom_point = None #TODO replace 0 with None, do properly
         change_in_x_lines.append(None)
@@ -593,6 +607,7 @@ def detect_lane(frame):
         blue_mid_point = (1/blue_mid_line[0])*(middle_goal - blue_mid_line[1])
         change_in_x = blue_mid_point - (1/blue_mid_line[0])*(border_middle_bottom - blue_mid_line[1])
         change_in_x_lines.append(2 * change_in_x)
+        gradients.append(blue_mid_line[0])
     else:
         blue_mid_point = None
         change_in_x_lines.append(None)
@@ -601,6 +616,7 @@ def detect_lane(frame):
         blue_top_point = (1/blue_top_line[0])*(top_goal - blue_top_line[1])
         change_in_x = blue_top_point - (1/blue_top_line[0])*(border_middle_top - blue_top_line[1])
         change_in_x_lines.append(2 * change_in_x)
+        gradients.append(blue_top_line[0])
     else:
         blue_top_point = None
         change_in_x_lines.append(None)
@@ -618,7 +634,7 @@ def detect_lane(frame):
                 point = None
 
     #Display stuff
-    lane_lines_image = np.copy(frame)
+    lane_lines_image = np.copy(color_image)
     if yellow_bottom_line is not None:
         lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(border_bottom, yellow_bottom_line[0], yellow_bottom_line[1]), border_bottom, calculate_x_from_y(border_middle_bottom, yellow_bottom_line[0], yellow_bottom_line[1]), border_middle_bottom),),), line_color=(204,102,0))
     if yellow_mid_line is not None:
@@ -639,7 +655,39 @@ def detect_lane(frame):
 
     #show_image("lane lines", lane_lines_image)
 
-    return (yellow_bottom_point, yellow_mid_point, yellow_top_point), (blue_bottom_point, blue_mid_point, blue_top_point), lane_lines_image, change_in_x_lines
+    return (yellow_bottom_point, yellow_mid_point, yellow_top_point), (blue_bottom_point, blue_mid_point, blue_top_point), lane_lines_image, change_in_x_lines, (None if len(gradients)==0 else sum(gradients)/len(gradients))
+
+def detect_green(frame, lane_line_gradient):
+    green_mask = np.array([[
+        (0, border_middle_bottom),
+        (width, border_middle_top),
+        (width, height),
+        (0, height)
+    ]], np.int32)
+
+    show_image("green_frame", frame)
+    green_edges = detect_edges(frame, thresh_green_low, thresh_green_high)
+    frame = region_of_interest(frame, green_mask)
+    show_image("green_edges", green_edges)
+    if lane_line_gradient is not None:
+        lane_line_angle = abs(math.atan(lane_line_gradient))
+        green_lines = detect_line_segments(green_edges)
+        green_line_image = display_lines(frame, green_lines)
+        show_image("Green lines", green_line_image)
+        if (green_lines is not None):
+            green_line = section_average_slope_intercept(green_lines, bottom_goal, give_horizontals=True)
+            if green_line is not None:
+                green_line_angle = abs(math.atan(green_line[0]))
+                if (0.5 < lane_line_angle - green_line_angle < 0.9 and -0.1 < green_line_angle < 0.1): #Is roughly perpeundicular to the lane lines and horizontal
+                    """#Check is roughly inside the lane lines: (If can't see the lane lines, that it at least passes through the middle of the image)
+                     #Inside lane lines:
+                    non_none_blue = [point for point in blue_points if point is not None]
+                    non_none_yellow = [point for point in yellow_points if point is not None]
+                     fail = False
+                    if len(non_none_blue) > 0:
+                        if min()"""
+                    return True
+    return False
 
 def calculate_x_from_y(y, gradient, intercept):
     return (1/gradient)*(y-intercept)
@@ -683,9 +731,8 @@ def split_lines(lines, height):
 
 def detect_edges(frame,low_thresh,high_thresh):
     # filter for  lane lines
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     # show_image("hsv", hsv)
-    mask = cv2.inRange(hsv, low_thresh, high_thresh)
+    mask = cv2.inRange(frame, low_thresh, high_thresh)
     #show_image("filtered colour", mask)
 
     # detect edges
@@ -694,7 +741,6 @@ def detect_edges(frame,low_thresh,high_thresh):
     return mask
 
 def region_of_interest(canny,polygon):
-    height, width = canny.shape
     mask = np.zeros_like(canny)
 
     cv2.fillPoly(mask, polygon, 255)
@@ -717,7 +763,7 @@ def detect_line_segments(cropped_edges):
 
     return line_segments
 
-def section_average_slope_intercept(line_segments, goal_height):
+def section_average_slope_intercept(line_segments, goal_height, give_horizontals=False):
     """
     Same logic as average_slope_intercept but without differentiating between left and right lines
     (as we can split left and right lines by colour)
@@ -779,7 +825,11 @@ def section_average_slope_intercept(line_segments, goal_height):
         average_gradient = 1024 #idk seems like a large enough number?
         average_intercept = -average_distance*math.sqrt(average_gradient**2 + 1) + goal_height
     elif average_angle == 0 or abs(average_angle) == math.pi:
-        return None #Probably should do better something for horizontal lines than just giving up
+        if not give_horizontals:
+            return None #Probably should do better something for horizontal lines than just giving up
+        else:
+            average_gradient = 0
+            return (average_gradient, average_distance*math.sqrt(average_gradient**2 + 1))
     else:
         average_gradient = math.tan(average_angle)
         average_intercept = average_distance*math.sqrt(average_gradient**2 + 1)* (-1 if average_gradient < 0 else 1) + goal_height
@@ -1024,9 +1074,9 @@ def make_points(frame, line):
 
     # bound the coordinates within the frame
     try:
-    	x1 = max(-width, min(2 * width, int((y1 - intercept) / slope)))
-    	x2 = max(-width, min(2 * width, int((y2 - intercept) / slope)))
-    	return [[x1, y1, x2, y2]]
+        x1 = max(-width, min(2 * width, int((y1 - intercept) / slope)))
+        x2 = max(-width, min(2 * width, int((y2 - intercept) / slope)))
+        return [[x1, y1, x2, y2]]
     except OverflowError:
         return [[-width, y1, -width, y1]]
 
@@ -1050,8 +1100,8 @@ class File_Inputter:
 
 #cap=Camera()
 #video_file='test5'
-#frame_input = File_Inputter()
-#_thread.start_new_thread(frame_input.next_frame_counter, tuple())
+frame_input = File_Inputter()
+_thread.start_new_thread(frame_input.next_frame_counter, tuple())
 lane_follower = HandCodedLaneFollower()
 _thread.start_new_thread(stopper, (lane_follower.arduino,))
 print("Running...")
@@ -1061,21 +1111,21 @@ def main():
     #counter_serial = 0
 
     LIVE = False
-    file = "20190703_112300.bag"
+    file = "2nd.bag"
     pipe, config, profile = setupstream(LIVE, file)
 
     #while cap.isOpened():
     while (True):
 
-            '''if frame_input.frame_counter < frame_input.frame_goal:
-                _, frame = cap.read()
-                frame_input.frame_counter += 1'''
+            if frame_input.frame_counter < frame_input.frame_goal:
+                frame, depth_frame, frameset = getframes(pipe)
+                frame_input.frame_counter += 1
             #counter_serial += 1
             #print(counter_serial)
 
-            frame, depth_frame, frameset = getframes(pipe)
+            #frame, depth_frame, frameset = getframes(pipe)
             combo_image = lane_follower.follow_lane(frame)
-            #time.sleep(0.04)
+            time.sleep(0.04)
 
             if cv2.waitKey(25) & 0xff == ord('q'):
                 cv2.destroyAllWindows()
