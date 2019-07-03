@@ -20,12 +20,12 @@ _SHOW_IMAGE = True
 
 #CONSTANTS
 #Threshold: yellow
-thresh_yellow_low = (19, 53, 109)
-thresh_yellow_high = (47, 157, 235)
+thresh_yellow_low = (20, 30, 161)
+thresh_yellow_high = (47, 255, 255)
 
 #Thresholds: blue
-thresh_blue_low = (62, 77, 114)
-thresh_blue_high = (107, 186, 192)
+thresh_blue_low = (96, 30, 147)
+thresh_blue_high = (145, 246, 239)
 
 #Thresholds: Purple (obstacle)
 thresh_purple_low = (130, 69, 37)
@@ -40,8 +40,8 @@ width = 320
 height = 180
 
 #Zoning (constants to split into top/middle/bottom sections)
-top_mask = height*1/6
-section_half_height = (height - top_mask)*1/8
+top_mask = height*1/10#
+section_half_height = (height - top_mask)*1/10
 section_overlap = section_half_height * 1/4
 border_top = top_mask
 top_goal = top_mask + section_half_height
@@ -78,11 +78,11 @@ class FakeArduino:
         self.send_speed = True
 
     def update_angle(self, angle):
-        if angle > 180:
-            angle = 180
-        elif angle < 0:
-            angle = 0
-        angle = 180 - angle
+        if angle > 160:
+            angle = 160
+        elif angle < 20:
+            angle = 20
+        angle = 160 - angle
         self.angle = int(angle)
 
     def get_speed(self):
@@ -128,11 +128,11 @@ class Arduino:
         self.send_speed = True
 
     def update_angle(self, angle):
-        if angle > 180:
-            angle = 180
-        elif angle < 0:
-            angle = 0
-        angle = 180 - angle
+        if angle > 160:
+            angle = 160
+        elif angle < 20:
+            angle = 20
+        angle = 160 - angle
         self.angle = int(angle)
 
     def get_speed(self):
@@ -323,19 +323,20 @@ class HandCodedLaneFollower(object):
             angle = calculate_angle(points)
 
         if angle:
-            speed = calculate_speed(points, angle)
+            #speed = calculate_speed(points, angle)
+            speed = 65
             self.arduino.update_angle(angle)
             if speed:
                 self.arduino.update_speed(speed)
         else:
-            self.arduino.update_speed(75)
+            self.arduino.update_speed(65)
 
 
 def calculate_angle(midpoints, old_steer=90):
     # midpoints is a list of midpoints :)
     # returns the value that should be sent to arduino
-    kp = 4 #KPP
-    kd = -0
+    kp = 2 #KPP
+    kd = -1
     #ko = 0.4
     old_steer = old_steer - 90 if old_steer > 90 else 90 - old_steer
 
@@ -343,7 +344,7 @@ def calculate_angle(midpoints, old_steer=90):
 
     # if no midpoints found don't turn?? reconsider this later
     if len(midpoint_list) == 0:
-        return 180
+        return 90
 
     # one midpoint == only proportional
     if len(midpoint_list) == 1:
@@ -416,14 +417,14 @@ def calculate_speed(midpoints, steer):
     midpoint_list = [x for x in midpoints if x[0] != None]
     # if no midpoints found don't move?? reconsider this later
     if len(midpoint_list) == 0:
-        return 75
+        return 80
 
-    steer *= 0.05
-    steer = 180 if steer > 180 else steer
+    steer *= 0.1
+    steer = 160 if steer > 160 else steer
     steer = 0 if steer < 0 else steer
     steer = steer - 90 if steer > 90 else 90 - steer
     steer = 90 - steer
-    min_speed = 84
+    min_speed = 80
     max_speed_proportional = 75
     kp = (min_speed - max_speed_proportional) / 90
     max_speed_integration = 70
@@ -513,7 +514,7 @@ def detect_lane(frame, color_image):
     line_segment_image_yellow = display_lines(color_image, yellow_line_segments)
     #show_image("yellow line segments", line_segment_image_yellow)
     line_segment_image_blue = display_lines(frame, blue_line_segments)
-    #show_image("blue line segments", line_segment_image_blue)
+    show_image("blue line segments", line_segment_image_blue)
 
     #Split lines into three segments:
     yellow_bottom, yellow_mid, yellow_top = split_lines(yellow_line_segments, height)
@@ -524,7 +525,7 @@ def detect_lane(frame, color_image):
     blue_top_image = display_lines(frame, blue_top)
     #show_image("blue line top segments", blue_top_image)
     blue_mid_image = display_lines(frame, blue_mid)
-    #show_image("blue mid segments", blue_mid_image)
+    show_image("blue mid segments", blue_mid_image)
     blue_bottom_image = display_lines(frame, blue_bottom)
     #show_image("blue bottom segments", blue_bottom_image)
 
