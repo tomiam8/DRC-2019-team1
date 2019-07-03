@@ -28,14 +28,8 @@ thresh_blue_low = (96,30,147)
 thresh_blue_high = (145, 246, 239)
 
 #Thresholds: Purple (obstacle)
-thresh_purple_low = (0, 0, 0)
-thresh_purple_high = (180, 255, 255)
-
-obstacle_area_min = 400
-obstacle_area_max = 2500
-
-obstacle_perimeter_min = 80
-obstacle_perimeter_max = 200
+thresh_purple_low = (108, 51, 0)
+thresh_purple_high = (180, 153, 102)
 
 #Image size
 width = 320
@@ -227,7 +221,7 @@ class HandCodedLaneFollower(object):
         logging.info('Creating a HandCodedLaneFollower...')
         self.car = car
         self.curr_steering_angle = 90
-        self.arduino = Arduino()
+        self.arduino = FakeArduino()
         self.arduino_thread = threading.Thread(target=self.arduino.run)
         self.arduino_thread.start()
 
@@ -247,6 +241,9 @@ class HandCodedLaneFollower(object):
         change_in_x_blue_lines = change_in_x_lines[3:]
         yellow_goal_points = (310, 300, 290) #TODO find empirically
         blue_goal_points = (10, 20, 30)
+
+        # Check for obstacles
+        detect_obstacle(frame)
 
         found_midpoints = 0
         for counter in range(3):
@@ -817,12 +814,42 @@ def average_slope_intercept(frame, line_segments):
     else:
         return None
 
+# Using blob detect and taking centroid of the blob as a region to avoid
 def detect_obstacle(frame):
-    threshold = detect_edges(frame, thresh_purple_low, thresh_purple_high)
-    edges = cv2.Canny(threshold, 200, 400)
-    (_, contours, _) = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
-    contour = filter_contours(contours)
+    # Threshold image, to filter out all but purple
+    gray_image = detect_edges(frame, thresh_purple_low, thresh_purple_high)
+
+    # Filter out bad readings
+    median = cv2.medianBlur(gray_image,15)
+    cv2.imshow("filter", median)
+    cv2.waitKey(1)
+
+    # convert the grayscale image to binary image
+    ret,thresh = cv2.threshold(median,127,255,0)
+
+    # calculate moments of binary image
+    M = cv2.moments(thresh)
+
+    # calculate x,y coordinate of center
+    if M["m00"] != 0:
+        cX = int(M["m10"] / M["m00"])
+        cY = int(M["m01"] / M["m00"])
+    else:
+        cX, cY = 0,0
+
+    # put text and highlight the center
+    if cX != 0 and cY != 0:
+        cv2.circle(frame, (cX, cY), 5, (255, 255, 255), -1)
+        cv2.putText(frame, "centroid", (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+        
+    # display the image
+    cv2.imshow("Image", frame)
+    cv2.waitKey(1)
+
+    x = 0
+    y = 0
+    return x, y
 
 def filter_contours(contours):
     final_contours = []
@@ -1001,8 +1028,8 @@ def main():
     time.sleep(3)
     #counter_serial = 0
 
-    LIVE = True
-    file = "xyz.bag"
+    LIVE = False
+    file = "20190703_112300.bag"
     pipe, config, profile = setupstream(LIVE, file)
 
     #while cap.isOpened():
