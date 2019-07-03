@@ -20,20 +20,20 @@ _SHOW_IMAGE = True
 
 #CONSTANTS
 #Threshold: yellow
-thresh_yellow_low = (20, 30, 161)
-thresh_yellow_high = (47, 255, 255)
+thresh_yellow_low = (19, 53, 109)
+thresh_yellow_high = (47, 157, 235)
 
 #Thresholds: blue
-thresh_blue_low = (96,30,147)
-thresh_blue_high = (145, 246, 239)
+thresh_blue_low = (62, 77, 114)
+thresh_blue_high = (107, 186, 192)
 
 #Thresholds: Purple (obstacle)
-thresh_purple_low = (108, 51, 0)
-thresh_purple_high = (180, 153, 102)
+thresh_purple_low = (130, 69, 37)
+thresh_purple_high = (171, 179, 75)
 
 #Thresholds: Green
-thresh_green_low = (40, 23, 135)
-thresh_green_high = (69, 99, 198)
+thresh_green_low = (40, 39, 135)
+thresh_green_high = (72, 99, 198)
 
 #Image size
 width = 320
