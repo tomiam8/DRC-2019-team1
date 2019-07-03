@@ -1068,7 +1068,7 @@ class File_Inputter:
 #cap=Camera()
 #video_file='test5'
 #frame_input = File_Inputter()
-_thread.start_new_thread(frame_input.next_frame_counter, tuple())
+#_thread.start_new_thread(frame_input.next_frame_counter, tuple())
 lane_follower = HandCodedLaneFollower()
 _thread.start_new_thread(stopper, (lane_follower.arduino,))
 print("Running...")
