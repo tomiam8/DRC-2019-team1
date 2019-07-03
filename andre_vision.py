@@ -268,9 +268,9 @@ class HandCodedLaneFollower(object):
 
         if found_midpoints == 0: #Just go off estimates
             for counter in range(3):
-                if yellow_points[counter] is not None:
-                    mid_points[counter] = yellow_points[counter] - 3 * width/4 - 1/(yellow_gradients[counter]**4) #- yellow_goal_points[counter] 
-                elif blue_points[counter] is not None:
+                if yellow_points[counter] is not None and yellow_gradients[counter] is not None:
+                    mid_points[counter] = yellow_points[counter] - 3 * width/4 - 1/(yellow_gradients[counter]**4) #- yellow_goal_points[counter]
+                elif blue_points[counter] is not None and blue_gradients[counter] is not None:
                     mid_points[counter] = 3*width/4 + blue_points[counter] + 1/(blue_gradients[counter]**4)#- blue_goal_points[counter]
 
         elif found_midpoints == 1: #Use offset from the single midpoint
@@ -282,13 +282,13 @@ class HandCodedLaneFollower(object):
 
             for counter in range(3):
                 if mid_points[counter] is None:
-                    if yellow_points[counter] is not None:
+                    if yellow_points[counter] is not None and change_in_x_yellow_lines[counter] is not None:
                         #mid_points[counter] = mid_points[midpoint] + (yellow_goal_points[midpoint] - yellow_goal_points[counter]) - (yellow_points[midpoint] - yellow_points[counter])
                         if counter > midpoint:
                             mid_points[counter] = mid_points[midpoint] + 0.5 * change_in_x_yellow_lines[counter]
                         elif counter < midpoint:
                             mid_points[counter] = mid_points[midpoint] - 0.5 * change_in_x_yellow_lines[counter]
-                    elif blue_points[counter] is not None:
+                    elif blue_points[counter] is not None and change_in_x_blue_lines[counter] is not None:
                         #mid_points[counter] = mid_points[midpoint] + (blue_goal_points[midpoint] - blue_goal_points[counter]) - (blue_points[midpoint] - blue_points[counter])
                         if counter > midpoint:
                             mid_points[counter] = mid_points[midpoint] + 0.5 * change_in_x_blue_lines[counter]
@@ -940,7 +940,7 @@ def avoid_obstacle(frame, obs_x, obs_y, yellow_points, blue_points):
 
     width = frame.shape[1]
     print(width)
-    display = 1
+    display = 0
 
     if display == 1:
         print("yellow", yellow_points)
@@ -951,12 +951,12 @@ def avoid_obstacle(frame, obs_x, obs_y, yellow_points, blue_points):
     if obs_x > width/2:
 
         # set this x coordinate as the new right line
-        blue_points = (None,None , obs_x)
+        blue_points = (obs_x,obs_x , obs_x)
 
     else:
 
         # set this x coordinate as the new left lines
-        yellow_points = (None,None, obs_y)
+        yellow_points = (obs_x,obs_x, obs_x)
 
     if display == 1:
         print("new yellow", yellow_points)
@@ -1143,7 +1143,7 @@ def main():
 
     #REMEMBER TO REMOVE RGB2BGR COLOUR FLIP (FOR BAG FILE)
     LIVE = False
-    file = "2nd.bag"
+    file = "4th.bag"
     pipe, config, profile = setupstream(LIVE, file)
 
     #while cap.isOpened():
