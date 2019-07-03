@@ -19,17 +19,17 @@ from cam import getframes
 _SHOW_IMAGE = True
 
 #CONSTANTS
-#Threshold: yellow
-thresh_yellow_low = (20, 30, 161)
-thresh_yellow_high = (47, 255, 255)
+#Thresholds: Yellow
+thresh_yellow_low = (22,78,116)
+thresh_yellow_high = (38,192,242)
 
 #Thresholds: blue
-thresh_blue_low = (96,30,147)
-thresh_blue_high = (145, 246, 239)
+thresh_blue_low = (98,46,147)
+thresh_blue_high = (135, 246, 239)
 
 #Thresholds: Purple (obstacle)
-thresh_purple_low = (108, 51, 0)
-thresh_purple_high = (180, 153, 102)
+thresh_purple_low = (141, 82, 34)
+thresh_purple_high = (162, 137, 108)
 
 #Thresholds: Green
 thresh_green_low = (40, 39, 135)
@@ -40,8 +40,8 @@ width = 320
 height = 180
 
 #Zoning (constants to split into top/middle/bottom sections)
-top_mask = height*1/6
-section_half_height = (height - top_mask)*1/8
+top_mask = height*1/10
+section_half_height = (height - top_mask)*1/10
 section_overlap = section_half_height * 1/4
 border_top = top_mask
 top_goal = top_mask + section_half_height
@@ -59,8 +59,8 @@ def stopper(arduino):
     global should_stop #Sorry.... :(
     while True:
         leInput = input("Press enter to {}:".format("stop" if should_stop else "start"))
-        shouldStop = not shouldStop
-        arduino.mode("STOP" if shouldStop else "START")
+        should_stop = not should_stop
+        arduino.mode("STOP" if should_stop else "START")
 
 class FakeArduino:
     def __init__(self):
@@ -228,6 +228,7 @@ class HandCodedLaneFollower(object):
         # Main entry point of the lane follower
         #show_image("orig", frame)
         frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_NEAREST)
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) #TODO remove
         crop_polygon = np.array([[
             (0, top_mask),
             (width, top_mask),
@@ -237,15 +238,15 @@ class HandCodedLaneFollower(object):
 
         color_image = np.copy(frame)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        yellow_points, blue_points, lane_lines_image, change_in_x_lines, average_gradient = detect_lane(frame, color_image) #points = (bottom, middle, top) x values
+        show_image("original", color_image)
+        yellow_points, blue_points, lane_lines_image, change_in_x_lines, yellow_gradients, blue_gradients = detect_lane(frame, color_image) #points = (bottom, middle, top) x values
 
-        green_line = detect_green(frame, average_gradient)
-        green_line_detection_history.pop(0)
-        green_line_detection_history.append(green_line)
-        if sum([1 for x in green_line_detection_history if x is True])/len(green_line_detection_history) > 0.2:
-            should_stop = True
+        #green_line = detect_green(frame, average_gradient)
+        #green_line_detection_history.pop(0)
+        #green_line_detection_history.append(green_line)
+        #if sum([1 for x in green_line_detection_history if x is True])/len(green_line_detection_history) > 0.2:
+        #    should_stop = True
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        yellow_points, blue_points, lane_lines_image, change_in_x_lines = detect_lane(frame, color_image) #points = (bottom, middle, top) x values
         mid_points = [None, None, None]
         change_in_x_yellow_lines = change_in_x_lines[:3]
         change_in_x_blue_lines = change_in_x_lines[3:]
@@ -268,9 +269,9 @@ class HandCodedLaneFollower(object):
         if found_midpoints == 0: #Just go off estimates
             for counter in range(3):
                 if yellow_points[counter] is not None:
-                    mid_points[counter] = yellow_points[counter] - 3 * width/4 #- yellow_goal_points[counter]
+                    mid_points[counter] = yellow_points[counter] - 3 * width/4 - 1/(yellow_gradients[counter]**4) #- yellow_goal_points[counter] 
                 elif blue_points[counter] is not None:
-                    mid_points[counter] = 3*width/4 + blue_points[counter] #- blue_goal_points[counter]
+                    mid_points[counter] = 3*width/4 + blue_points[counter] + 1/(blue_gradients[counter]**4)#- blue_goal_points[counter]
 
         elif found_midpoints == 1: #Use offset from the single midpoint
             #Find which one has the midpoint
@@ -505,8 +506,8 @@ def detect_lane(frame, color_image):
     yellow_cropped = region_of_interest(yellow_edges, crop_polygon)
     blue_cropped = region_of_interest(blue_edges, crop_polygon)
 
-    #show_image('yellow edges', yellow_cropped)
-    #show_image('blue edges', blue_cropped)
+    show_image('yellow edges', yellow_cropped)
+    show_image('blue edges', blue_cropped)
 
     yellow_line_segments = detect_line_segments(yellow_cropped)
     blue_line_segments = detect_line_segments(blue_cropped)
@@ -521,29 +522,29 @@ def detect_lane(frame, color_image):
     #    blue_line_segments = [blue_line_segments[0]] #TODO REMOVE
 
     line_segment_image_yellow = display_lines(frame, yellow_line_segments)
-    #show_image("yellow line segments", line_segment_image_yellow)
+    show_image("yellow line segments", line_segment_image_yellow)
     line_segment_image_blue = display_lines(frame, blue_line_segments)
-    #show_image("blue line segments", line_segment_image_blue)
+    show_image("blue line segments", line_segment_image_blue)
 
     #Split lines into three segments:
     yellow_bottom, yellow_mid, yellow_top = split_lines(yellow_line_segments, height)
     blue_bottom, blue_mid, blue_top = split_lines(blue_line_segments, height)
 
-    frame = display_lines(color_image, (((0, border_top, width, border_top),), ((0, top_goal, width, top_goal),), ((0, border_middle_top, width, border_middle_top),), ((0, middle_goal, width, middle_goal),), ((0, border_middle_bottom, width, border_middle_bottom),), ((0, bottom_goal, width, bottom_goal),), ((0, border_bottom, width, border_bottom),)), line_color=(255,255,255), line_width=1)
+    lane_lines_image = display_lines(np.copy(color_image), (((0, border_top, width, border_top),), ((0, top_goal, width, top_goal),), ((0, border_middle_top, width, border_middle_top),), ((0, middle_goal, width, middle_goal),), ((0, border_middle_bottom, width, border_middle_bottom),), ((0, bottom_goal, width, bottom_goal),), ((0, border_bottom, width, border_bottom),)), line_color=(255,255,255), line_width=1)
 
     blue_top_image = display_lines(frame, blue_top)
-    #show_image("blue line top segments", blue_top_image)
+    show_image("blue line top segments", blue_top_image)
     blue_mid_image = display_lines(frame, blue_mid)
-    #show_image("blue mid segments", blue_mid_image)
+    show_image("blue mid segments", blue_mid_image)
     blue_bottom_image = display_lines(frame, blue_bottom)
-    #show_image("blue bottom segments", blue_bottom_image)
+    show_image("blue bottom segments", blue_bottom_image)
 
     yellow_top_image = display_lines(frame, yellow_top)
-    #show_image("yellow line top segments", yellow_top_image)
+    show_image("yellow line top segments", yellow_top_image)
     yellow_mid_image = display_lines(frame, yellow_mid)
-    #show_image("yellow mid segments", yellow_mid_image)
+    show_image("yellow mid segments", yellow_mid_image)
     yellow_bottom_image = display_lines(frame, yellow_bottom)
-    #show_image("yellow bottom segments", yellow_bottom_image)
+    show_image("yellow bottom segments", yellow_bottom_image)
 
     yellow_bottom_line = section_average_slope_intercept(yellow_bottom, bottom_goal) #returns (gradient, intercept)
     yellow_mid_line = section_average_slope_intercept(yellow_mid, middle_goal)
@@ -626,15 +627,18 @@ def detect_lane(frame, color_image):
 
     for point in yellow_points:
         if point is not None:
-            if not (0 < point < width*5/4):
-                point = None
+            if (-width > point):
+                point = -width
+            elif point < width*2:
+                point = 2*width
     for point in blue_points:
         if point is not None:
-            if not (width*-1/4 < point < width):
-                point = None
+            if -width > point:
+                point = -width
+            elif point < width*2:
+                point = 2*width
 
     #Display stuff
-    lane_lines_image = np.copy(color_image)
     if yellow_bottom_line is not None:
         lane_lines_image = display_lines(lane_lines_image, (((calculate_x_from_y(border_bottom, yellow_bottom_line[0], yellow_bottom_line[1]), border_bottom, calculate_x_from_y(border_middle_bottom, yellow_bottom_line[0], yellow_bottom_line[1]), border_middle_bottom),),), line_color=(204,102,0))
     if yellow_mid_line is not None:
@@ -653,9 +657,9 @@ def detect_lane(frame, color_image):
     line_points = [point for point in line_points if point[0] is not None]
     lane_lines_image = display_points(lane_lines_image, line_points)
 
-    #show_image("lane lines", lane_lines_image)
+    show_image("lane lines", lane_lines_image)
 
-    return (yellow_bottom_point, yellow_mid_point, yellow_top_point), (blue_bottom_point, blue_mid_point, blue_top_point), lane_lines_image, change_in_x_lines, (None if len(gradients)==0 else sum(gradients)/len(gradients))
+    return (yellow_bottom_point, yellow_mid_point, yellow_top_point), (blue_bottom_point, blue_mid_point, blue_top_point), lane_lines_image, change_in_x_lines, (yellow_bottom_line[0] if yellow_bottom_line is not None else None, yellow_mid_line[0] if yellow_mid_line is not None else None, yellow_top_line[0] if yellow_top_line is not None else None), (blue_bottom_line[0] if blue_bottom_line is not None else None, blue_mid_line[0] if blue_mid_line is not None else None, blue_top_line[0] if blue_top_line is not None else None)
 
 def detect_green(frame, lane_line_gradient):
     green_mask = np.array([[
@@ -665,7 +669,6 @@ def detect_green(frame, lane_line_gradient):
         (0, height)
     ]], np.int32)
 
-    show_image("green_frame", frame)
     green_edges = detect_edges(frame, thresh_green_low, thresh_green_high)
     frame = region_of_interest(frame, green_mask)
     show_image("green_edges", green_edges)
@@ -714,7 +717,7 @@ def split_lines(lines, height):
             bottom.append(line)
 
         #Middle
-        if ((border_middle_top < y2 and border_middle_bottom < y1) or #Both ends in middle zone
+        if ((border_middle_top > y2 and border_middle_bottom < y1) or #Both ends in middle zone
           (middle_goal < y1 < border_middle_bottom) or #Bottom end far in middle zone
           (border_middle_top < y2 < middle_goal) or #Top end far in middle zone
           (border_middle_top < y1 < border_middle_bottom and border_middle_top - section_overlap < y2) or #Bottom end in middle zone, and top is very close to middle zone
@@ -726,6 +729,34 @@ def split_lines(lines, height):
           (border_top < y2 < top_goal) or #Top end far inside top zone
           (border_top < y2 < border_middle_top and border_middle_top + section_overlap < y1)): #Top inside zone, bottom near zone
             top.append(line)
+
+    top_needs_more = True if len(top) <= 1 else False
+    middle_needs_more = True if len(middle) <= 1 else False
+    bottom_needs_more = True if len(bottom) <= 1 else False
+
+    if (top_needs_more or middle_needs_more or bottom_needs_more):
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            #Make y2 always bottom (higher value) than y1
+            if y2 > y1:
+                temp = y1
+                y1 = y2
+                y2 = temp
+                temp = x1
+                x1 = x2
+                x2 = temp
+
+            #Bottom
+            if (bottom_needs_more) and (border_middle_bottom < y2):
+                bottom.append(line)
+
+            #Middle
+            if (middle_needs_more) and ((border_middle_top < y1 < border_middle_bottom) or (border_middle_top < y2 < border_middle_bottom)):
+                middle.append(line)
+
+            #Top
+            if (top_needs_more) and (border_middle_top > y1):
+                top.append(line)
 
     return bottom, middle, top
 
@@ -1103,13 +1134,14 @@ class File_Inputter:
 frame_input = File_Inputter()
 _thread.start_new_thread(frame_input.next_frame_counter, tuple())
 lane_follower = HandCodedLaneFollower()
-_thread.start_new_thread(stopper, (lane_follower.arduino,))
+#_thread.start_new_thread(stopper, (lane_follower.arduino,)) #TODO turn stopper back on
 print("Running...")
 
 def main():
     time.sleep(3)
     #counter_serial = 0
 
+    #REMEMBER TO REMOVE RGB2BGR COLOUR FLIP (FOR BAG FILE)
     LIVE = False
     file = "2nd.bag"
     pipe, config, profile = setupstream(LIVE, file)

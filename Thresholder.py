@@ -6,16 +6,16 @@ from cam import getframes
 
 ################ Setup constants ################
 #Thresholds: Yellow
-thresh_yellow_low = (20,19,161)
-thresh_yellow_high = (47,255,255)
+thresh_yellow_low = (22,78,116)
+thresh_yellow_high = (38,192,242)
 
 #Thresholds: blue
-thresh_blue_low = (96,30,147)
-thresh_blue_high = (145, 246, 239)
+thresh_blue_low = (98,46,147)
+thresh_blue_high = (135, 246, 239)
 
 #Thresholds: Purple (obstacle)
-thresh_purple_low = (0, 0, 0)
-thresh_purple_high = (180, 255, 255)
+thresh_purple_low = (141, 82, 34)
+thresh_purple_high = (162, 137, 108)
 
 #Thresholds: Green
 thresh_green_low = (40, 23, 135)
@@ -173,6 +173,7 @@ class Camera:
 def process_image(color_frame, thresh_yellow_low, thresh_yellow_high, thresh_blue_low, thresh_blue_high, thresh_purple_low, thresh_purple_high, thresh_green_low, thresh_green_high, debug):
     # Image processing (resize, hsv, blur, add border, threshold, blur, Canny, contour finding)
     resize_img = cv2.resize(np.asanyarray(color_frame), (320, 180), interpolation=cv2.INTER_NEAREST)
+    resize_img = cv2.cvtColor(resize_img, cv2.COLOR_RGB2BGR) #TODO remove
     hsv_img = cv2.cvtColor(resize_img, cv2.COLOR_BGR2HSV)
     blur_img = cv2.GaussianBlur(hsv_img, (5, 5), 0)
     bordered_img = cv2.copyMakeBorder(blur_img, 3, 3, 3, 3, cv2.BORDER_CONSTANT, (0, 0, 0))
@@ -215,8 +216,8 @@ class File_Inputter:
 
 frame_input = File_Inputter()
 _thread.start_new_thread(frame_input.next_frame_counter, tuple())
-LIVE = True
-file = "videos/green_line.bag"
+LIVE = False
+file = "2nd.bag"
 pipe, config, profile = setupstream(LIVE, file)
 try:
     while True:
