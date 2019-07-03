@@ -28,14 +28,8 @@ thresh_blue_low = (96,30,147)
 thresh_blue_high = (145, 246, 239)
 
 #Thresholds: Purple (obstacle)
-thresh_purple_low = (0, 0, 0)
-thresh_purple_high = (180, 255, 255)
-
-obstacle_area_min = 400
-obstacle_area_max = 2500
-
-obstacle_perimeter_min = 80
-obstacle_perimeter_max = 200
+thresh_purple_low = (108, 51, 0)
+thresh_purple_high = (180, 153, 102)
 
 #Image size
 width = 320
@@ -53,9 +47,33 @@ border_middle_bottom = top_mask + section_half_height*4
 bottom_goal = top_mask + section_half_height*5
 border_bottom = top_mask + section_half_height*6
 
+#Globals rather than costants but shhh
+
+def stopper(arduino):
+    shouldStop = False
+    while True:
+        leInput = input("Press enter to {}:".format("stop" if shouldStop else "start"))
+        shouldStop = not shouldStop
+        """try:
+            if leInput[0] == 'p':
+                kp = float(leInput[1:])
+                print("kp: {}".format(kp))
+                shouldStop = not shouldStop #Flip it back
+            elif leInput[0] == 'd':
+                kd = float(leInput[1:])
+                print("kd: {}".format(kd))
+                shouldStop = not shouldStop
+        except KeyboardInterrupt:
+            arduino.mode("STOP")
+            time.sleep(0.5)
+            sys.exit()
+        except Exception:
+            pass"""
+        arduino.mode("STOP" if shouldStop else "START")
+
 class FakeArduino:
     def __init__(self):
-        self.speed = 80
+        self.speed = 90
         self.send_speed = True
         self.angle = 90
         self.send_angle = True
@@ -95,10 +113,17 @@ class FakeArduino:
 class Arduino:
     def __init__(self):
         self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
-        self.speed = 80
+        self.speed = 90
         self.send_speed = True
         self.angle = 90
         self.send_angle = True
+        self.should_run = True
+
+    def mode(self, value):
+        if value=="STOP":
+            self.should_run = False
+        elif value=="START":
+            self.should_run = True
 
     def update_speed(self, speed):
         if speed > 180:
@@ -124,16 +149,18 @@ class Arduino:
 
     def run(self):
         while True:
-            self.connection.write(b"D000")
-            time.sleep(0.04)
-            if self.send_speed:
+            #self.connection.write("D000".encode())
+            #time.sleep(0.01)
+            if self.should_run and self.send_speed:
                 self.connection.write(f"M{self.speed:03d}".encode())
                 self.send_speed = False
-                time.sleep(0.04)
+                #time.sleep(0.005)
+            elif not self.should_run:
+                self.connection.write("M090".encode())
+                #time.sleep(0.005)
             self.connection.write(f"S{self.angle:03d}".encode())
-            time.sleep(0.04)
 
-class Stopper:
+"""class Stopper:
     def __init__(self, arduino):
         self.arduino = arduino
 
@@ -143,6 +170,7 @@ class Stopper:
             time.sleep(4)
             input("Press enter to start again:")
             self.arduino.update_speed(80)
+"""
 
 class Camera:
     def __init__(self):
@@ -202,6 +230,7 @@ class HandCodedLaneFollower(object):
         #self.stopper_thread.start()
 
     def follow_lane(self, frame):
+
         # Main entry point of the lane follower
         #show_image("orig", frame)
         frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_NEAREST)
@@ -213,6 +242,9 @@ class HandCodedLaneFollower(object):
         yellow_goal_points = (310, 300, 290) #TODO find empirically
         blue_goal_points = (10, 20, 30)
 
+        # Check for obstacles
+        detect_obstacle(frame)
+
         found_midpoints = 0
         for counter in range(3):
             if yellow_points[counter] is not None and blue_points[counter] is not None:
@@ -222,7 +254,7 @@ class HandCodedLaneFollower(object):
         if found_midpoints == 0: #Just go off estimates
             for counter in range(3):
                 if yellow_points[counter] is not None:
-                    mid_points[counter] = yellow_points[counter] -3 * width/4 #- yellow_goal_points[counter]
+                    mid_points[counter] = yellow_points[counter] - 3 * width/4 #- yellow_goal_points[counter]
                 elif blue_points[counter] is not None:
                     mid_points[counter] = 3*width/4 + blue_points[counter] #- blue_goal_points[counter]
 
@@ -278,41 +310,48 @@ class HandCodedLaneFollower(object):
         #Do steering stuff
         #final_frame = self.steer(frame, lane_lines)
         points = [x for x in ((mid_points[0], bottom_goal), (mid_points[1], middle_goal), (mid_points[2], top_goal))]
-        angle = calculate_angle(points)
-        speed = 0
-        print(angle)
+        try:
+            angle = calculate_angle(points, angle)
+        except NameError:
+            angle = calculate_angle(points)
 
         if angle:
             speed = calculate_speed(points, angle)
             self.arduino.update_angle(angle)
+            if speed:
+                self.arduino.update_speed(speed)
+        else:
+            self.arduino.update_speed(75)
 
-        if speed:
-            self.arduino.update_speed(speed)
 
-
-
-def calculate_angle(midpoints):
+def calculate_angle(midpoints, old_steer=90):
     # midpoints is a list of midpoints :)
     # returns the value that should be sent to arduino
+    kp = 4 #KPP
+    kd = -0
+    #ko = 0.4
+    old_steer = old_steer - 90 if old_steer > 90 else 90 - old_steer
+
     midpoint_list = [x for x in midpoints if x[0] != None]
 
     # if no midpoints found don't turn?? reconsider this later
     if len(midpoint_list) == 0:
-        return 90
-
-    kp = 90 / 70
-    kd = 0
+        return 180
 
     # one midpoint == only proportional
     if len(midpoint_list) == 1:
         try:
             x, y = midpoint_list[0]
-            # theta = x from centre to midpoint / y from centre to midpoint
-            theta = (x - width/2) / (height - y)
-            theta += 90
+            # theta = x from centre to midpoint / y from midpoint to bottom
+            # theta = (x - width/2) / (height - y)
+            # theta = math.degrees(math.atan(theta))
+
+            l = x - width/2
+            delta_l = x - width/2
+            delta_h = height - y
 
             # -20 acts as a stabiliser
-            return kp * (theta - 20)
+            return 90 + kp * (l) + kd * (delta_l / delta_h) #- ko * old_steer
         except:
             return None
 
@@ -322,14 +361,18 @@ def calculate_angle(midpoints):
             x1, y1 = midpoint_list[0]
             x2, y2 = midpoint_list[1]
 
-            theta1 = (x1 - width/2) / (height - y1)
-            theta1 += 90
-            theta2 = (x2 - width/2) / (height - y2)
-            theta2 += 90
+            #theta1 = (x1 - width/2) / (height - y1)
+            #theta1 = math.degrees(math.atan(theta1))
+            #theta2 = (x2 - width/2) / (height - y2)
+            #theta2 = math.degrees(math.atan(theta2))
+            #theta_average = theta1 + theta2
+            #theta_average /= 2
 
-            change_in_theta = (theta2 - theta1) / (y1 - y2)
+            l = x1 - width/2
+            delta_l = x2 - x1
+            delta_h = y1 - y2
 
-            return kp * (theta1 - 20) + kd * (change_in_theta - 20 / height)
+            return 90 + kp * (l) + kd * (delta_l / delta_h) #- ko * old_steer
         except:
             return None
 
@@ -339,19 +382,23 @@ def calculate_angle(midpoints):
             x2, y2 = midpoint_list[1]
             x3, y3 = midpoint_list[2]
 
-            theta1 = (x1 - width/2) / (height - y1)
-            theta1 += 90
-            theta2 = (x2 - width/2) / (height - y2)
-            theta2 += 90
-            theta3 = (x3 - width/2) / (height - y3)
-            theta3 += 90
+            # theta1 = (x1 - width/2) / (height - y1)
+            # theta1 = math.degrees(math.atan(theta1))
+            # theta2 = (x2 - width/2) / (height - y2)
+            # theta2 = math.degrees(math.atan(theta2))
+            # theta3 = (x3 - width/2) / (height - y3)
+            # theta3 = math.degrees(math.atan(theta3))
 
-            change_in_theta1 = (theta2 - theta1) / (y1 - y2)
-            change_in_theta2 = (theta3 - theta2) / (y2 - y3)
-            change_in_theta_average = (change_in_theta1 + change_in_theta2) / 2
+            # theta_average = theta1 + theta2 + theta3
+            # theta_average /= 3
+
+            l = x1 - width/2
+            delta1 = (x2 - x1) / (y1 - y2)
+            delta2 = (x3 - x2) / (y2 - y3)
+            delta_average = (delta1 + delta2) / 2
 
             # return kp * (theta1 - 20) + kd * (change_in_theta1 - 20 / height) + kd * (change_in_theta2 - 20 / height)
-            return kp * (theta1 - 20) + kd * (change_in_theta_average - 20 / height)
+            return 90 + kp * (l) + kd * (delta_average) #- ko * old_steer
         except:
             return None
 
@@ -359,16 +406,20 @@ def calculate_angle(midpoints):
     return 90
 
 def calculate_speed(midpoints, steer):
-
     midpoint_list = [x for x in midpoints if x[0] != None]
     # if no midpoints found don't move?? reconsider this later
     if len(midpoint_list) == 0:
-        return 90
+        return 75
 
-    kp = -0.333
-    min_speed = 80
-    max_speed_proportional = 50
-    max_speed_integration = 40
+    steer *= 0.05
+    steer = 180 if steer > 180 else steer
+    steer = 0 if steer < 0 else steer
+    steer = steer - 90 if steer > 90 else 90 - steer
+    steer = 90 - steer
+    min_speed = 84
+    max_speed_proportional = 75
+    kp = (min_speed - max_speed_proportional) / 90
+    max_speed_integration = 70
     ki = 0
 
     proportional_speed = min_speed + kp * steer
@@ -438,8 +489,8 @@ def detect_lane(frame):
     yellow_cropped = region_of_interest(yellow_edges, crop_polygon)
     blue_cropped = region_of_interest(blue_edges, crop_polygon)
 
-    show_image('yellow edges', yellow_cropped)
-    show_image('blue edges', blue_cropped)
+    #show_image('yellow edges', yellow_cropped)
+    #show_image('blue edges', blue_cropped)
 
     yellow_line_segments = detect_line_segments(yellow_cropped)
     blue_line_segments = detect_line_segments(blue_cropped)
@@ -454,9 +505,9 @@ def detect_lane(frame):
     #    blue_line_segments = [blue_line_segments[0]] #TODO REMOVE
 
     line_segment_image_yellow = display_lines(frame, yellow_line_segments)
-    show_image("yellow line segments", line_segment_image_yellow)
+    #show_image("yellow line segments", line_segment_image_yellow)
     line_segment_image_blue = display_lines(frame, blue_line_segments)
-    show_image("blue line segments", line_segment_image_blue)
+    #show_image("blue line segments", line_segment_image_blue)
 
     #Split lines into three segments:
     yellow_bottom, yellow_mid, yellow_top = split_lines(yellow_line_segments, height)
@@ -465,18 +516,18 @@ def detect_lane(frame):
     frame = display_lines(frame, (((0, border_top, width, border_top),), ((0, top_goal, width, top_goal),), ((0, border_middle_top, width, border_middle_top),), ((0, middle_goal, width, middle_goal),), ((0, border_middle_bottom, width, border_middle_bottom),), ((0, bottom_goal, width, bottom_goal),), ((0, border_bottom, width, border_bottom),)), line_color=(255,255,255), line_width=1)
 
     blue_top_image = display_lines(frame, blue_top)
-    show_image("blue line top segments", blue_top_image)
+    #show_image("blue line top segments", blue_top_image)
     blue_mid_image = display_lines(frame, blue_mid)
-    show_image("blue mid segments", blue_mid_image)
+    #show_image("blue mid segments", blue_mid_image)
     blue_bottom_image = display_lines(frame, blue_bottom)
-    show_image("blue bottom segments", blue_bottom_image)
+    #show_image("blue bottom segments", blue_bottom_image)
 
     yellow_top_image = display_lines(frame, yellow_top)
-    show_image("yellow line top segments", yellow_top_image)
+    #show_image("yellow line top segments", yellow_top_image)
     yellow_mid_image = display_lines(frame, yellow_mid)
-    show_image("yellow mid segments", yellow_mid_image)
+    #show_image("yellow mid segments", yellow_mid_image)
     yellow_bottom_image = display_lines(frame, yellow_bottom)
-    show_image("yellow bottom segments", yellow_bottom_image)
+    #show_image("yellow bottom segments", yellow_bottom_image)
 
     yellow_bottom_line = section_average_slope_intercept(yellow_bottom, bottom_goal) #returns (gradient, intercept)
     yellow_mid_line = section_average_slope_intercept(yellow_mid, middle_goal)
@@ -580,7 +631,7 @@ def detect_lane(frame):
     line_points = [point for point in line_points if point[0] is not None]
     lane_lines_image = display_points(lane_lines_image, line_points)
 
-    show_image("lane lines", lane_lines_image)
+    #show_image("lane lines", lane_lines_image)
 
     return (yellow_bottom_point, yellow_mid_point, yellow_top_point), (blue_bottom_point, blue_mid_point, blue_top_point), lane_lines_image, change_in_x_lines
 
@@ -641,7 +692,7 @@ def region_of_interest(canny,polygon):
     mask = np.zeros_like(canny)
 
     cv2.fillPoly(mask, polygon, 255)
-    show_image("mask", mask)
+    #show_image("mask", mask)
     masked_image = cv2.bitwise_and(canny, mask)
     return masked_image
 
@@ -763,12 +814,42 @@ def average_slope_intercept(frame, line_segments):
     else:
         return None
 
+# Using blob detect and taking centroid of the blob as a region to avoid
 def detect_obstacle(frame):
-    threshold = detect_edges(frame, thresh_purple_low, thresh_purple_high)
-    edges = cv2.Canny(threshold, 200, 400)
-    (_, contours, _) = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
-    contour = filter_contours(contours)
+    # Threshold image, to filter out all but purple
+    gray_image = detect_edges(frame, thresh_purple_low, thresh_purple_high)
+
+    # Filter out bad readings
+    median = cv2.medianBlur(gray_image,15)
+    cv2.imshow("filter", median)
+    cv2.waitKey(1)
+
+    # convert the grayscale image to binary image
+    ret,thresh = cv2.threshold(median,127,255,0)
+
+    # calculate moments of binary image
+    M = cv2.moments(thresh)
+
+    # calculate x,y coordinate of center
+    if M["m00"] != 0:
+        cX = int(M["m10"] / M["m00"])
+        cY = int(M["m01"] / M["m00"])
+    else:
+        cX, cY = 0,0
+
+    # put text and highlight the center
+    if cX != 0 and cY != 0:
+        cv2.circle(frame, (cX, cY), 5, (255, 255, 255), -1)
+        cv2.putText(frame, "centroid", (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+        
+    # display the image
+    cv2.imshow("Image", frame)
+    cv2.waitKey(1)
+
+    x = 0
+    y = 0
+    return x, y
 
 def filter_contours(contours):
     final_contours = []
@@ -940,13 +1021,15 @@ class File_Inputter:
 #frame_input = File_Inputter()
 #_thread.start_new_thread(frame_input.next_frame_counter, tuple())
 lane_follower = HandCodedLaneFollower()
+_thread.start_new_thread(stopper, (lane_follower.arduino,))
 print("Running...")
 
 def main():
     time.sleep(3)
+    #counter_serial = 0
 
-    LIVE = True
-    file = "xyz.bag"
+    LIVE = False
+    file = "20190703_112300.bag"
     pipe, config, profile = setupstream(LIVE, file)
 
     #while cap.isOpened():
@@ -955,6 +1038,8 @@ def main():
             '''if frame_input.frame_counter < frame_input.frame_goal:
                 _, frame = cap.read()
                 frame_input.frame_counter += 1'''
+            #counter_serial += 1
+            #print(counter_serial)
 
             frame, depth_frame, frameset = getframes(pipe)
             combo_image = lane_follower.follow_lane(frame)
