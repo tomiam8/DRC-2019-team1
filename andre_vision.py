@@ -160,10 +160,9 @@ class Stopper:
 
     def run(self):
         while True:
-            self.arduino.update_speed(90)
-            time.sleep(4)
-            input("Press enter to start again:")
-            self.arduino.update_speed(80)
+            input("Press enter to toggle state")
+            self.arduino.mode("STOP" if arduino.should_run else "START")
+            time.sleep(2)
 
 
 class Camera:
@@ -336,10 +335,9 @@ class HandCodedLaneFollower(object):
         if angle:
             speed = calculate_speed(points, angle)
             self.arduino.update_angle(angle)
-            self.arduino.update_speed(80)
+            #self.arduino.update_speed(80)
             if speed:
-                pass
-                #self.arduino.update_speed(speed)
+                self.arduino.update_speed(speed)
         else:
             self.arduino.update_speed(80)
 
