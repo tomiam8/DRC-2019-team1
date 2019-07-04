@@ -107,11 +107,11 @@ class FakeArduino:
 class Arduino:
     def __init__(self):
         self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
-        self.speed = 65
+        self.speed = 80
         self.send_speed = True
         self.angle = 90
         self.send_angle = True
-        self.should_run = True
+        self.should_run = False
 
     def mode(self, value):
         if value=="STOP":
@@ -148,13 +148,13 @@ class Arduino:
             if self.should_run and self.send_speed:
                 self.connection.write(f"M{self.speed:03d}".encode())
                 self.send_speed = False
-                #time.sleep(0.005)
+                time.sleep(0.005)
             elif not self.should_run:
                 self.connection.write("M090".encode())
-                #time.sleep(0.005)
+                time.sleep(0.005)
             self.connection.write(f"S{self.angle:03d}".encode())
 
-"""class Stopper:
+class Stopper:
     def __init__(self, arduino):
         self.arduino = arduino
 
@@ -164,7 +164,7 @@ class Arduino:
             time.sleep(4)
             input("Press enter to start again:")
             self.arduino.update_speed(80)
-"""
+
 
 class Camera:
     def __init__(self):
@@ -336,12 +336,12 @@ class HandCodedLaneFollower(object):
         if angle:
             speed = calculate_speed(points, angle)
             self.arduino.update_angle(angle)
-            self.arduino.update_speed(65)
+            self.arduino.update_speed(80)
             if speed:
                 pass
                 #self.arduino.update_speed(speed)
         else:
-            self.arduino.update_speed(65)
+            self.arduino.update_speed(80)
 
 
 def calculate_angle(midpoints, old_steer=90):
