@@ -60,7 +60,7 @@ def stopper(arduino):
     while True:
         leInput = input("Press enter to {}:".format("stop" if should_stop else "start"))
         should_stop = not should_stop
-        arduino.mode("STOP" if should_stop else "START")
+        arduino.mode("START")
 
 class FakeArduino:
     def __init__(self):
@@ -239,7 +239,7 @@ class HandCodedLaneFollower(object):
 
         color_image = np.copy(frame)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        show_image("original", color_image)
+        #show_image("original", color_image)
         yellow_points, blue_points, lane_lines_image, change_in_x_lines, yellow_gradients, blue_gradients = detect_lane(frame, color_image) #points = (bottom, middle, top) x values
 
         #green_line = detect_green(frame, average_gradient)
@@ -323,7 +323,7 @@ class HandCodedLaneFollower(object):
         cv2.circle(lane_lines_image, (obs_x, obs_y), 5, (255, 255, 255), -1)
         cv2.putText(lane_lines_image, "centroid", (obs_x - 25, obs_y - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
         lane_lines_image = display_points(lane_lines_image, mid_points_draw, point_color=(127,0,255))
-        show_image("Mid points", lane_lines_image)
+        #show_image("Mid points", lane_lines_image)
 
         #Do steering stuff
         #final_frame = self.steer(frame, lane_lines)
@@ -336,10 +336,12 @@ class HandCodedLaneFollower(object):
         if angle:
             speed = calculate_speed(points, angle)
             self.arduino.update_angle(angle)
+            self.arduino.update_speed(65)
             if speed:
-                self.arduino.update_speed(speed)
+                pass
+                #self.arduino.update_speed(speed)
         else:
-            self.arduino.update_speed(75)
+            self.arduino.update_speed(65)
 
 
 def calculate_angle(midpoints, old_steer=90):
@@ -507,8 +509,8 @@ def detect_lane(frame, color_image):
     yellow_cropped = region_of_interest(yellow_edges, crop_polygon)
     blue_cropped = region_of_interest(blue_edges, crop_polygon)
 
-    show_image('yellow edges', yellow_cropped)
-    show_image('blue edges', blue_cropped)
+    #show_image('yellow edges', yellow_cropped)
+    #show_image('blue edges', blue_cropped)
 
     yellow_line_segments = detect_line_segments(yellow_cropped)
     blue_line_segments = detect_line_segments(blue_cropped)
@@ -523,9 +525,9 @@ def detect_lane(frame, color_image):
     #    blue_line_segments = [blue_line_segments[0]] #TODO REMOVE
 
     line_segment_image_yellow = display_lines(frame, yellow_line_segments)
-    show_image("yellow line segments", line_segment_image_yellow)
+    #show_image("yellow line segments", line_segment_image_yellow)
     line_segment_image_blue = display_lines(frame, blue_line_segments)
-    show_image("blue line segments", line_segment_image_blue)
+    #show_image("blue line segments", line_segment_image_blue)
 
     #Split lines into three segments:
     yellow_bottom, yellow_mid, yellow_top = split_lines(yellow_line_segments, height)
@@ -534,18 +536,18 @@ def detect_lane(frame, color_image):
     lane_lines_image = display_lines(np.copy(color_image), (((0, border_top, width, border_top),), ((0, top_goal, width, top_goal),), ((0, border_middle_top, width, border_middle_top),), ((0, middle_goal, width, middle_goal),), ((0, border_middle_bottom, width, border_middle_bottom),), ((0, bottom_goal, width, bottom_goal),), ((0, border_bottom, width, border_bottom),)), line_color=(255,255,255), line_width=1)
 
     blue_top_image = display_lines(frame, blue_top)
-    show_image("blue line top segments", blue_top_image)
+    #show_image("blue line top segments", blue_top_image)
     blue_mid_image = display_lines(frame, blue_mid)
-    show_image("blue mid segments", blue_mid_image)
+    #show_image("blue mid segments", blue_mid_image)
     blue_bottom_image = display_lines(frame, blue_bottom)
-    show_image("blue bottom segments", blue_bottom_image)
+    #show_image("blue bottom segments", blue_bottom_image)
 
     yellow_top_image = display_lines(frame, yellow_top)
-    show_image("yellow line top segments", yellow_top_image)
+    #show_image("yellow line top segments", yellow_top_image)
     yellow_mid_image = display_lines(frame, yellow_mid)
-    show_image("yellow mid segments", yellow_mid_image)
+    #show_image("yellow mid segments", yellow_mid_image)
     yellow_bottom_image = display_lines(frame, yellow_bottom)
-    show_image("yellow bottom segments", yellow_bottom_image)
+    #show_image("yellow bottom segments", yellow_bottom_image)
 
     yellow_bottom_line = section_average_slope_intercept(yellow_bottom, bottom_goal) #returns (gradient, intercept)
     yellow_mid_line = section_average_slope_intercept(yellow_mid, middle_goal)
@@ -658,7 +660,7 @@ def detect_lane(frame, color_image):
     line_points = [point for point in line_points if point[0] is not None]
     lane_lines_image = display_points(lane_lines_image, line_points)
 
-    show_image("lane lines", lane_lines_image)
+    #show_image("lane lines", lane_lines_image)
 
     return (yellow_bottom_point, yellow_mid_point, yellow_top_point), (blue_bottom_point, blue_mid_point, blue_top_point), lane_lines_image, change_in_x_lines, (yellow_bottom_line[0] if yellow_bottom_line is not None else None, yellow_mid_line[0] if yellow_mid_line is not None else None, yellow_top_line[0] if yellow_top_line is not None else None), (blue_bottom_line[0] if blue_bottom_line is not None else None, blue_mid_line[0] if blue_mid_line is not None else None, blue_top_line[0] if blue_top_line is not None else None)
 
@@ -672,12 +674,12 @@ def detect_green(frame, lane_line_gradient):
 
     green_edges = detect_edges(frame, thresh_green_low, thresh_green_high)
     frame = region_of_interest(frame, green_mask)
-    show_image("green_edges", green_edges)
+    #show_image("green_edges", green_edges)
     if lane_line_gradient is not None:
         lane_line_angle = abs(math.atan(lane_line_gradient))
         green_lines = detect_line_segments(green_edges)
         green_line_image = display_lines(frame, green_lines)
-        show_image("Green lines", green_line_image)
+        #show_image("Green lines", green_line_image)
         if (green_lines is not None):
             green_line = section_average_slope_intercept(green_lines, bottom_goal, give_horizontals=True)
             if green_line is not None:
@@ -910,7 +912,7 @@ def detect_obstacle(frame):
 
     # Filter out bad readings
     median = cv2.medianBlur(gray_image,15)
-    cv2.imshow("filter", median)
+    #cv2.imshow("filter", median)
     cv2.waitKey(1)
 
     # convert the grayscale image to binary image
@@ -1150,15 +1152,14 @@ def main():
     #while cap.isOpened():
     while (True):
 
-            if frame_input.frame_counter < frame_input.frame_goal:
-                frame, depth_frame, frameset = getframes(pipe)
-                frame_input.frame_counter += 1
+            #if frame_input.frame_counter < frame_input.frame_goal:
+            frame, depth_frame, frameset = getframes(pipe)
+            #    frame_input.frame_counter += 1
             #counter_serial += 1
             #print(counter_serial)
 
             #frame, depth_frame, frameset = getframes(pipe)
             combo_image = lane_follower.follow_lane(frame)
-            time.sleep(0.04)
 
             if cv2.waitKey(25) & 0xff == ord('q'):
                 cv2.destroyAllWindows()
