@@ -107,7 +107,7 @@ class FakeArduino:
 class Arduino:
     def __init__(self):
         self.connection = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
-        self.speed = 90
+        self.speed = 65
         self.send_speed = True
         self.angle = 90
         self.send_angle = True
